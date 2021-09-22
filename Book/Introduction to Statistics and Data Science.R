@@ -18,7 +18,7 @@
 # https://cran.r-project.org/web/packages/fivethirtyeight/vignettes/fivethirtyeight.html
 #   https://github.com/rudeboybert/fivethirtyeight/tree/master/data
 #   https://github.com/fivethirtyeight/data  - original raw data containing csv
-# candy_rankings
+# candy_rankings        drug_use              
 
 
 # Datasets
@@ -33,6 +33,7 @@ candy_rankings <- read.csv(paste(path_dataset, "candy_rankings", ".csv", sep = "
 #* Additional Functions ----
 # https://github.com/khannay/HannayIntroStats/tree/master/R
 # StatePlot             ElbowClusterPlot        grabNumeric
+# t.test.hand           
 
 
 # Additional Functions
@@ -5340,65 +5341,260 @@ quantile(many.median.studies, c(0.025, 0.975))
 # One to run the simulations and one to form the confidence interval.
 
 #*** Exercise 10.1 ----
-# Find the 99% Confidence Interval of the sample mean departure delays using bootstrapping
-quantile(many.studies, c(0.005, 0.995))
+#   File - Chapter 10.R
 
 
 #*** Exercise 10.2 ----
-# Find the 95% Confidence Interval for the sample variance of the departure delays using bootstrapping
-many_variance_studies <- replicate(10000, sd(sample(flightNYC$dep_delay, 5000, replace=TRUE))^2) 
-quantile(many_variance_studies, c(0.025, 0.975))
+#   File - Chapter 10.R
 
 
 #*** questions ----
 # To learn more about how to interpret confidence intervals open the app “ConfidenceIntervals” by running the command:
 #*** 1. ----
-# The red lines show the confidence intervals which do not contain the actual population mean.
-# How does the number of these misses change as you adjust the confidence level?
-# Can you see a connection between the confidence level and the expected number of errors?
-#   As the confidence interval decreases (i.e. 99 to 80), number of errors increases.
+#   File - Chapter 10.R
 
 
 #*** 2. ----
-# How does changing the sample size effect the number of errors made (misses)?
-#   No impact from sample sizes.
+#   File - Chapter 10.R
 
 
 #*** 3. ----
-# How does the width (length) of the intervals change as the sample size increases?
-#   width reduces as sample size increases.
+#   File - Chapter 10.R
 
 
 #*** 4. ----
-# How does the width(length) of the confidence intervals change as the confidence level increases?
-#   width increase as condidence level increases (i.e. 80 to 99)
+#   File - Chapter 10.R
 
 
 #*** Exercise 10.3 ----
-# Back to the flight delays example if we increased our sample size in the original experiment to 10000 flights what would you expect to happen to to the width of our 95% confidence interval? 
-#   width should reduce
-many.studies <- replicate(10000, mean(sample(flightNYC$dep_delay, 10000, replace=TRUE)))
-
-hist(many.studies, col='coral', xlab='Flight Delays in Minutes', main='Histogram of Possible Mean Flight Delays NYC')
-
-quantile(many.studies, c(0.025, 0.975))
+#   File - Chapter 10.R
 
 
 #_---- 
 
 
 #* 10.3 Shortcut Using the Central Limit Theorem -------------------------
+# As noted above the distribution of sample means is expected to follow a Normal distribution as a consequence of the Central Limit Theorem.
+# In addition we know that this normal distribution will have a standard deviation equal to the standard error 
+#   σ¯X = σ / √N.
+
+# Therefore, the empirical rule tells us that 95% of the outcomes in this normal distribution will occur in the interval 
+#   (¯X − 2σ¯X, ¯X + 2σ¯X).
+
+# Moreover, if we wanted to have a 99% guarantee we could form the interval 
+#   (¯X − 3σ¯X, ¯X + 3σ¯X)
+
+# We already have ¯X (the sample mean) as:
+mean(flightNYC$dep_delay)
+
+# However, to use the formula for the standard error σ¯X=σ√N we need to know the population standard deviation σ.
+# This is difficult because if we don’t know what the mean flight delays is, in all likelihood we don’t know what the standard deviation is either!
+  
+# One way around this logical trap is to use the sample standard deviation s as an estimate for the value of the population standard deviation σ.
+# In R we can find this value as
+sd(flightNYC$dep_delay)
+
+# This is what is often done in practice and in old fashioned statistics.
+# However, since the sample standard deviation is based on a sample it will change each time we conduct the experiment as well (as you saw in the exercise above).
+# Fortunately, we have a fix for this issue.
+# Instead of using a normal distribution we can use a distribution called the Student t distribution.
+# This distribution accounts for the fact that our sample standard deviation is not a perfect estimate for the population standard deviation used in the CLT.
+
+# As usual if we use R we can avoid having to deal with the student t distribution directly.
+# This brings us to perhaps the most important R command of the entire course:
+t.test(flightNYC$dep_delay)
+
+# This produces a lot of output which we will be learning about over the next few weeks.
+# For now we can ignore all the output except the line which gives us the confidence interval.
+# By default R will find a 95% confidence interval. Notice that this confidence interval is pretty close to the one we found using simulations above.
+# This is because the distribution of sample means is close to a t distribution.
+
+# We could do a 99% confidence interval by changing one of the options to the t.test function.
+t.test(flightNYC$dep_delay, conf.level=0.99)
+
+# Notice we could get almost the same thing using bootstrapping (with less assumptions).
+many.mean.studies <- replicate(10000, mean(sample(flightNYC$dep_delay, 5000, replace=TRUE))) 
+quantile(many.mean.studies, c(0.005, 0.995))
+
+# The Student t distribution becomes very close to the Normal distribution for large sample sizes.
+# Therefore, most old-fashioned statistics textbooks usually define an entirely different test (called the z-test) for use with large sample sizes.
+# If we are willing to use R then it makes no sense to use the z-test just to save the computer some work.
+# Make the computer do the hard work!
 
 
+#** 10.3.0.1 Conditions for using t.test for CIs ----
+# Let us quickly review what the required conditions are to use a student t distribution to find a confidence interval:
+#   1. Must be using the the sample mean ¯X estimator to estimate the population mean
+#   2. Either a large enough sample size n≥30 for the Central Limit Theorem to apply, or for small sample sizes you need to know (assume) the population distribution is roughly mound-shaped.
+#       This is because the confidence intervals formed using the t distribution assume that ¯X is approximately normally distributed.
+
+# If either of these conditions are not met, then you need to use bootstrapping technique to estimate the confidence interval for the population mean.
+# For the mean flight delay problem we are fine to use the t test approach because our sample size is 5000>30.
 
 
+# A very common mistake is to use the student t distribution and CLT approach to form confidence intervals when these assumptions are violated.
+# Most commonly when we have small sample size N<30 or when trying to form a confidence interval for a point estimator which is not the sample mean ¯x. 
 
 
+#*** Exercise 10.4 ----
+#   File - Chapter 10.R
 
 
+#*** Exercise 10.5 ----
+#   File - Chapter 10.R
 
 
+#_---- 
 
+
+#* 10.4 Additional Practice: Comparing Airports --------------------------
+# We began work on the flights data set using all the measurements as one data set.
+# However, we are often more interested in comparing the outputs for data covering different conditions.
+
+# In particular, for the flights data set, we may interested in estimating the mean flight delays between the three airports in the NYC area.
+# Recall that we can easily filter data in R.
+# First, lets take a look at the different airports in our data set.
+# Using the table command to look at how many flights we have from each airport in the data set.
+table(flightNYC$origin)
+
+
+# Now lets create three weight data sets for each of these origin airports:
+delays.ewr=subset(flightNYC$dep_delay,flightNYC$origin=='EWR') # give the depature delays for flights out of EWR only
+delays.jfk=subset(flightNYC$dep_delay,flightNYC$origin=='JFK')
+delays.lga=subset(flightNYC$dep_delay,flightNYC$origin=='LGA')
+
+
+# Since each of these data sets are relatively large we can use the t.test command to form the confidence intervals for the population mean.
+t.test(delays.ewr) 
+t.test(delays.jfk)
+t.test(delays.lga)
+
+
+# We can see that the confidence intervals EWR shows flights there tend to be delayed a bit longer on average.
+# We will learn in the next chapter about how we can use statistics to find differences between groups.
+
+
+#_----
+
+
+#* 10.5 Population Proportion Confidence Intervals -----------------------
+# Suppose that we want to estimate the fraction of the total flights which are delayed on departure going out of NYC.
+# These are the flights which have a positive value in the dep_delay column.
+# Lets make a new column on the data frame which tracks this:
+flightNYC$is.delayed=ifelse(flightNYC$dep_delay>0, 'Delayed', 'Not Delayed') # make a new column 
+prop.table(table(flightNYC$is.delayed))
+
+
+# So our first estimate for this might be that about 39% of the the flights out of NYC take off late.
+# However, how confident should we be in this answer? How reliable is this estimate?
+# For this we would like to find a confidence interval for our proportion.
+
+# Let us start by simulating repeating this analysis using simulations.
+# The below command finds the fraction of delayed flights in a simulated year of flights:
+sum(sample(flightNYC$is.delayed, 5000, replace=TRUE)=="Delayed")/5000
+
+
+# We could run this simulation again and we will get a slightly different answer:
+sum(sample(flightNYC$is.delayed, 5000, replace=TRUE)=="Delayed")/5000
+
+# Now lets do it thousands of times to get an idea about the sampling distribution of the proportion of delayed flights.
+many.studies.delayed <- replicate(10000, sum(sample(flightNYC$is.delayed, 5000, replace=TRUE)=="Delayed")/5000)
+hist(many.studies.delayed, col='coral', main='Fraction of Delayed Flights in a Simulated Year')
+
+
+# We saw in the last chapter that the standard error of this sampling distribution is given by
+#   σ^p = √p(1−p) / N.
+
+# For the flights case we have N=5000 and p≈0.3898 this gives:
+sqrt(0.3898*(1-0.3898)/5000)
+
+# From our simulations we can estimate the standard error as the standard deviation from our simulated experiments:
+sd(many.studies.delayed)
+
+# We can see that our simulation results agree closely with the theoretical prediction for the standard error σ^p.
+# Now we can find the 95% confidence interval using the quantile command again:
+quantile(many.studies.delayed, c(0.025,0.975))
+
+# Here are the two commands for bootstrapping the 95% confidence interval for ^p together:
+many.studies.delayed <- replicate(10000, sum(sample(flightNYC$is.delayed, 5000, replace=TRUE)=="Delayed")/5000)
+quantile(many.studies.delayed, c(0.025,0.975))
+
+# So we could conclude that the true proportion delayed flights out of NYC is highly likely to be in the interval (0.37, 0.40).
+
+# We could also estimate the 95% confidence interval using the command prop.test in R.
+# This is similar in nature to the t.test command we say earlier for estimating the population mean.
+# The main difference is that we have to do a little bit of processing before we give the information to the prop.test command.
+delayed.table=table(flightNYC$is.delayed)
+print(delayed.table)
+
+# We can hand this table directly over to the prop.test command.
+prop.test(delayed.table)
+
+# Just like the t.test command this gives us a bunch of information that we don’t really need right now.
+# Notice the answer is almost exactly what we found using the bootstrapping approach.
+# If we want a different confidence interval we just have to change the conf.level option to prop.test:
+prop.test(delayed.table, conf.level = 0.99)
+
+# This gives the 99% confidence interval.
+
+
+#** 10.5.0.1 Conditions for using prop.test for CI ----
+# For our confidence interval for a population proportion to be valid the following must be true:
+#   To use the prop.test command we should have at least 5 successes AND 5 failures in our data set.
+#   All trials should be independent and identically distributed in our data set.
+
+# Otherwise the confidence interval formed will be unreliable.
+
+# For the flight example this means we need to have at least five delayed flights and at least five not delayed flights.
+# Moreover, we are assuming that the flights were collected randomly with no biases in terms of the likelihood of recording either outcome.
+
+
+#** 10.5.0.2 Additional Examples of Proportion Tests ----
+# 1.
+#   Suppose we conducted a survey to see what proportion of the population supports a candidate in the upcoming election.
+#   If we asked 300 people and 76 supported the candidate then form a 95% confidence interval for the fraction of the population who supports the candidate.
+
+# This doesn’t require any real processing before we hand it over to prop.test, because we are given the number of successes (76 here) and the total number of measurements (300).
+# We also are good to use the prop.test command because we have at least 5 successes (76) and at least five failures (300-76>5).
+prop.test(76,300)  # format is the number of successes and the number of trials
+
+
+# 2.
+#   If the San Antonio Spurs have played 41 games and won 35 of them.
+#   Find a 99% confidence interval for their winning percentage.
+# Successes:35 and Total Attempts: 41
+# We have at least 5 successes (35) and at least 5 failures (6).
+prop.test(35,41, conf.level=0.99)
+
+
+#_---- 
+
+
+#* 10.6 Extra Practice Problems ------------------------------------------
+# Sometimes we are not provided with the entire data set but we still want to be able to form a confidence interval for the mean value.
+# Suppose for example that we want to form a confidence interval for the mean concentration of a chemical in our water supply.
+# From a government website we find some data telling us that in a sample of 74 glasses of water they found an mean of 0.6 moles of this chemical and a standard deviation of s=0.056.
+# We could use our large sample confidence interval formula to form this using the CLT and the empirical rule.
+#   x ± 2s/√N   95\% Confidence interval
+#  ¯x ± 3s/√N   99\% Confidence interval
+
+# However, for smaller samples this doesn’t take into account the variation induced by using the data to estimate both the mean and standard deviation. This is where we want to use the student t distribution.
+# The below command forms a confidence interval for the population mean using just the sample mean, sample standard deviation and the number of samples taken.
+t.test.hand(0.6, 0.056, 74, conf.level = 0.99)
+
+
+#_---- 
+
+
+#* 10.7 Homework ---------------------------------------------------------
+#   File - Chapter 10.R
+
+
+# ____----
+
+
+# Chapter 11 Introduction to Linear Regression ----------------------------
+#* 11.1 Statistical Models -----------------------------------------------
 
 
 
@@ -5408,12 +5604,14 @@ quantile(many.studies, c(0.025, 0.975))
 
 #_---- 
 
+
 # ____----
 
-load(paste(path_dataset, "flightNYC", ".Rdata", sep = ""))
 
-load(paste(path, "candy_rankings", ".rda", sep = ""))
+load(paste(path_dataset, "drug_use", ".Rdata", sep = ""))
 
-source(paste(path2, "grabNumeric", ".R", sep = ""))
+load(paste(path_dataset, "drug_use", ".rda", sep = ""))
+
+source(paste(path_add_func, "t.test.hand", ".R", sep = ""))
 
 source(paste(path_shiny, "runHannayApp", ".R", sep = ""))

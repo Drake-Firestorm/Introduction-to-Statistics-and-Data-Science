@@ -1,5 +1,4 @@
 ## Introduction to Statistics and Data Science
-===========
 
 Practice solutions for [Introduction to Statistics and Data Science](https://faculty.nps.edu/rbassett/_book/)
 
