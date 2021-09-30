@@ -1,0 +1,12 @@
+https://web.stanford.edu/~rjohari/teaching/notes/226_lecture2_linear_regression.pdf
+
+kidiq
+    kid_score   Child’s score on IQ test
+    mom_hs      Did mom complete high school?
+    mom_iq      Mother’s score on IQ test
+    mom_work    Working mother?
+        1 = did not work in first three years of child’s life
+        2 = worked in 2nd or 3rd year of child’s life
+        3 = worked part-time in first year of child’s life
+        4 = worked full-time in first year of child’s life
+    mom_age     Mother’s age at birth of child

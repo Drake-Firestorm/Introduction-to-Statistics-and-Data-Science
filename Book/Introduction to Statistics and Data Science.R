@@ -5,14 +5,18 @@
 
 #* Datasets ----
 # https://github.com/khannay/HannayIntroStats/tree/master/data
-# animal_sleep          geese_flocks          wine_tasting          shot_logs_2014
-# mushrooms             Employee_Data         hkhw                  nflplays
-# GradeCurveHW          flightNYCFull         BirdCaptureData       demographic_data
-# crime_cluster         nba_pg_2016           Lebron_James_2016     poincare_bread
-# toad_girth            Hogwarts_Heights      flightNYC             
-# nba_pgs_all_players_2016                    Young_People_Survey 
-# HR_Employee_Attrition                       bad_drivers_cluster
-# Gambling_HW_Normality                       
+# animal_sleep      BirdCaptureData       crime_cluster       demographic_data
+# Employee_Data     flightNYC             flightNYCFull       geese_flocks
+# GradeCurveHW      hkhw                  Hogwarts_Heights    Lebron_James_2016
+# mushrooms         nba_pg_2016           nflplays            poincare_bread
+# shot_logs_2014    toad_girth            wine_tasting        NBA_Draft_Data
+# bacon_data        cricket_chirps        alligator           kidiq
+# census.us.pop     food_college          videoGameSales      
+# AmesHousing_Regression                  bad_drivers_cluster
+# Gambling_HW_Normality                   seaice_dec_northern
+# HR_Employee_Attrition                   nba_pgs_all_players_2016
+# Young_People_Survey                     StudentsPerformance
+# 
 
 
 # https://cran.r-project.org/web/packages/fivethirtyeight/vignettes/fivethirtyeight.html
@@ -32,8 +36,9 @@ candy_rankings <- read.csv(paste(path_dataset, "candy_rankings", ".csv", sep = "
 
 #* Additional Functions ----
 # https://github.com/khannay/HannayIntroStats/tree/master/R
-# StatePlot             ElbowClusterPlot        grabNumeric
-# t.test.hand           
+# ElbowClusterPlot      grabNumeric           t.test.hand
+# StatePlot             diagRegressionPlots   generateCorrelatedErrors
+# dropLowFactors
 
 
 # Additional Functions
@@ -62,6 +67,7 @@ library(dplyr)
 library(maps)
 library(cluster)
 library(shiny)
+library(corrplot)
 
 
 # ____----
@@ -5308,7 +5314,7 @@ mean(second.study)
 # This keyword means we are allowed to measure the same flight twice and makes our simulation different on each run.
 
 # If we repeated his simulation of measuring delays many times we would get a distribution of values, representing the results from thousands of replications of the analysis.
-many.studies<-replicate(10000, mean(sample(flightNYC$dep_delay, 5000, replace=TRUE))) # measure the sample mean for 5000 flights 10 thousands times
+many.studies <- replicate(10000, mean(sample(flightNYC$dep_delay, 5000, replace=TRUE))) # measure the sample mean for 5000 flights 10 thousands times
 hist(many.studies, col='coral', xlab='Flight Delays in Minutes', main='Histogram of Possible Mean Flight Delays NYC') 
 
 # As a side note you may notice that this distribution of sample means looks very mound-shaped (Normal distribution).
@@ -5331,7 +5337,7 @@ quantile(many.studies, c(0.025, 0.975))
 # To use it you don’t need to remember any formulas or theorems and it will work for whatever point estimator we could possibly want.
 # example,
 #   we could find the 95% confidence interval for the median flight delays using the commands:
-many.median.studies<-replicate(10000, median(sample(flightNYC$dep_delay, 5000, replace=TRUE))) 
+many.median.studies <- replicate(10000, median(sample(flightNYC$dep_delay, 5000, replace=TRUE))) 
 quantile(many.median.studies, c(0.025, 0.975))
 
 # Notice that the only change was to change the mean of each sample to the median.
@@ -5459,9 +5465,9 @@ table(flightNYC$origin)
 
 
 # Now lets create three weight data sets for each of these origin airports:
-delays.ewr=subset(flightNYC$dep_delay,flightNYC$origin=='EWR') # give the depature delays for flights out of EWR only
-delays.jfk=subset(flightNYC$dep_delay,flightNYC$origin=='JFK')
-delays.lga=subset(flightNYC$dep_delay,flightNYC$origin=='LGA')
+delays.ewr <- subset(flightNYC$dep_delay,flightNYC$origin == 'EWR') # give the depature delays for flights out of EWR only
+delays.jfk <- subset(flightNYC$dep_delay,flightNYC$origin == 'JFK')
+delays.lga <- subset(flightNYC$dep_delay,flightNYC$origin == 'LGA')
 
 
 # Since each of these data sets are relatively large we can use the t.test command to form the confidence intervals for the population mean.
@@ -5481,7 +5487,7 @@ t.test(delays.lga)
 # Suppose that we want to estimate the fraction of the total flights which are delayed on departure going out of NYC.
 # These are the flights which have a positive value in the dep_delay column.
 # Lets make a new column on the data frame which tracks this:
-flightNYC$is.delayed=ifelse(flightNYC$dep_delay>0, 'Delayed', 'Not Delayed') # make a new column 
+flightNYC$is.delayed <- ifelse(flightNYC$dep_delay>0, 'Delayed', 'Not Delayed') # make a new column 
 prop.table(table(flightNYC$is.delayed))
 
 
@@ -5524,7 +5530,7 @@ quantile(many.studies.delayed, c(0.025,0.975))
 # We could also estimate the 95% confidence interval using the command prop.test in R.
 # This is similar in nature to the t.test command we say earlier for estimating the population mean.
 # The main difference is that we have to do a little bit of processing before we give the information to the prop.test command.
-delayed.table=table(flightNYC$is.delayed)
+delayed.table <- table(flightNYC$is.delayed)
 print(delayed.table)
 
 # We can hand this table directly over to the prop.test command.
@@ -5595,23 +5601,1085 @@ t.test.hand(0.6, 0.056, 74, conf.level = 0.99)
 
 # Chapter 11 Introduction to Linear Regression ----------------------------
 #* 11.1 Statistical Models -----------------------------------------------
+# We are now ready to start studying relationship between variables (columns) in our data.
+# To begin our study of this vast topic we will consider the NYC flight data again. 
+# First lets read this data into R.
+data("flightNYC")
+colnames(flightNYC)
+
+# Lets begin is a simple example by considering the relationship between the distance (flight distance in miles) and the air_time (flight time in minutes).
+# From high school physics we know these should linearly related in theory, and this is easy enough to examine by making a scatter plot of these two variables:
+plot(flightNYC$distance, flightNYC$air_time / 60.0,
+     xlab = 'Flight Distance in Miles', ylab = 'Flight Time in Hours', main = 'Flight Distance versus time',
+     col = 'blue', cex = 0.5)
+
+# This plot shows the expected trend that longer distance flights generally take longer to complete, and intuitively in describing this trend we might draw a line through this cloud of points. 
+# However, notice that we have some significant variation in the flying times which are going about the same distance. 
+# This may have to do with many possible factors (weather, aircraft type, seasonal effects, airport approach requirements, etc).
+
+# Also notice that we the vast majority of the flights are less than 3000 miles and we have a large gap in out data set for flights between 3000-5000 miles. 
+# Since we don’t have any data in this interval it is best that we remove the very long flights from the data and focus on the less than 3000 mile flights.
+flightNYC <- subset(flightNYC, flightNYC$distance <= 3000)
+
+# This leads to the following set of questions we would like to answer about this data set:
+#   1. How can we tell is this effect is real or just us seeing trends in random data?
+#     (This is obvious in this case…..but not always the case!)
+#   2. If the effect is real, and how can we measure the strength of this effect?
+#   3. How much information does knowledge of the distance give us about the flying time?
+#   4. Given the flight distance can we we make an accurate prediction for the flight time?
+  
+# To answer these questions we need to build a statistical model for the flying time based on the distance. 
+# A simple model for the effect of distance on flight time is a linear model:
+#   Tflight = βD + α + ϵi
+
+# This is called a linear model because it takes the form of y=mx+b. 
+# In this case α is the y-intercept and β is the slope of the line. 
+# The ϵi is an assumed noise term which allows for random errors in the measurements. 
+# We assume these errors have a normal distribution with mean zero and standard deviation σr. 
+# For our flight model we call Tflight the response variable (y axis) and D is the called the explanatory variable (x axis).
+
+# To specify the model we will need to find the slope β and y-intercept α.
 
 
+#*** Exercise 11.1 ----
+#   File - Chapter 11.R
 
 
+#*** Exercise 11.2 ----
+#   File - Chapter 11.R 
 
+
+#*** Exercise 11.3 ----
+#   File - Chapter 11.R 
+
+
+#* Note ----
+# When we interpret a linear model of the form y = βx + α,
+#   α is the value the y variable takes when x is zero, 
+#   β gives the amount that y will increase(decrease) when x increases by one. 
 
 
 #_---- 
 
 
+#* 11.2 Fitting a Linear Model in R --------------------------------------
+# It turns out that a very way to choose the best α and β is to minimize the sum of square distance between the data points and the model predictions. 
+# Suppose, we have a model with N data points (x1,y1),(x2,y2),...(xN,yN), then we can measure the Cost of the model for one data point yj by finding the distance (squared) between this data point and the predicted value ^yj(xj)=α+βxj. 
+# Summing up all these errors or residuals gives us a measure of how well the model describes the data. 
+#   Cost(α,β) = N∑[j=1]r^2[j] = N∑[j=1] [y[j] − (α + βx[j])]^2
+
+# The below plot shows the residuals as green arrows for a guess of α=10, β=1.5 for the flight model. 
+# The total cost is also printed below for this parameter choice. 
+# Note, I reduced the number of data points (circles) in this plot just for the purpose of being able to see the green arrows (residual) values more clearly.
+
+# Now I want to show you how to use R to fit a linear model and view the results. 
+# Here is the command to build a linear model for our flying data and view a summary of the results.
+res.flying <- lm(air_time ~ distance, data = flightNYC) ##notice the format y~x response~explanatory
+summary(res.flying)
+
+# We will learn what all this output (stats poop) means later. 
+# Let’s see what our residual plot looks like for these optimal values:
+
+# Notice that the cost (sum of all the residuals squared has decreased by quite a bit from our initial guess). 
+# This is the best (optimal) values of α and β we could possibly choose. 
+# Any other choice of α,β would give a larger cost value. 
+# Now we can look at the the estimates for the α and β parameters that R finds:
+res.flying$coefficients
+
+# The β slope parameter is what is most important for our flying model. 
+# The best point estimate for β is ≈0.126. 
+# In the context of the model this means that for every 1 mile increase in distance we should expect the flying time to increase by about 0.12 minutes. 
+# We can see how well the value of β is determined by the data by finding the confidence interval for β:
+confint(res.flying, level = 0.99)
+
+# We can also make a plot of the line that R fit to our flying data. 
+# We can see that the line captures some of the big picture trends in the data.
+plot(flightNYC$distance, flightNYC$air_time,
+     main = 'Flying Distance versus Time Linear Model', xlab = 'Distance (Miles)', ylab = 'Time (Minutes)',
+     col = 'red', cex = 0.3)
+abline(res.flying, col = 'blue')
+
+# The α term (y-intercept) here tells us that flights which go no distance at all (0 miles) should be expected to take somewhere between 17-19 minutes. 
+# This is a bit more difficult to interpret as presumably nobody is booking flights which take off and go nowhere. # However, we could regard this value as a measurement of the inevitable inefficiency of airports where planes must take turns to take-off and land and can only approach from particular directions. 
+# This effect generally adds something like twenty minutes to flights out of NYC.
+
+
+#** 11.2.0.1 House Sales Price vs Square Footage ----
+# Lets consider a more interesting problem. In this section we will use linear regression to understand the relationship between the sales price of a house and the square footage of that house. 
+# Intuitively, we expect these two variables to be related, as bigger houses typically sell for more money. 
+# The data set comes from Ames, Iowa house sales from 2006-2010. 
+# First, lets read this data in and make a scatter plot of the sales price versus the square footage.
+data("AmesHousing_Regression") # from HannayAppliedStats package
+house <- AmesHousing_Regression # rename this data
+house <- dropLowFactors(house, factor.column = 3, threshold = 30) # from HannayApplied Stats drop all neighborhoods with less than 30 data points
+head(house)
+
+# We can see this has the log10 of the selling price, the square footage and the number of bathrooms in the house.
+plot(house$Square.Feet, house$SalePrice,
+     main = 'Real Estate Prices in Ames Iowa (Color by Neighborhood)', xlab = 'Square Footage (log10)', ylab = 'Sale Price ($) log10',
+     col = house$Neighborhood, cex = 0.5)
+
+# As expected we can see from the plot that square footage is somewhat important in determining the sales price of the house, but we can see that their is significant variation in the sales price for any given sqft size. 
+# Let’s try and build a linear model for the relationship between the sqft of the houses and the sales price.
+res.house <- lm(SalePrice.log10 ~ Square.Feet.log10, data = house)
+summary(res.house)
+
+# Lets look to see if the slope we found is significant (relative to a slope of zero):
+confint(res.house, level = 0.99)
+
+# We can say that the slope is significantly greater than zero with a significance level α=0.01 since this 99% confidence interval doesn’t include zero. 
+# Finally, lets plot our regression line on the scatter plot:
+plot(house$Square.Feet, house$SalePrice,
+     main = 'Real Estate Prices in Ames Iowa (Color by Neighborhood)', xlab = 'Square Footage (log10)', ylab = 'Sale Price ($) log10',
+     col = house$Neighborhood, cex = 0.5)
+abline(res.house$coefficients)
+
+# Note, since we are dealing with the logarithms of the price and square footage here we these results tell us to expect a 1% increase in the square footage of the house to increase the Sales price by about 1% as well. 
+# In terms of the non logarithm transformed variables our model looks like 
+#   Price = α[0] * (Sqft)^β.
+
+# By taking the logarithm of both sides of this we get a linear equation 
+# log(Price)=log(α0)+βlog(Sqft)
+plot(10^house$Square.Feet, 10^house$SalePrice,
+     main = 'Real Estate Prices in Ames Iowa (Color by Neighborhood)', xlab = 'Square Footage', ylab = 'Sale Price ($)',
+     col = house$Neighborhood, cex = 0.5)
+x <- seq(0, 5000, 1)
+alpha0 <- 10^2.35
+y <- alpha0 * x^0.90
+lines(x, y, type = 'l')
+
+
+#*** Exercise 11.4 ----
+#   File - Chapter 11.R 
+
+
+#_---- 
+
+
+#* 11.3 Assumptions of Linear Regression ---------------------------------
+# Recall the form of our statistical model for linear regression is:
+#   y[j] = β[1]x[j] + α[0] + ϵ[j]
+# 1. Linearity:
+#   The most important assumption of linear regression is that the response variable y is linearly dependent on the explanatory variable.
+#   This assumption forms the bedrock for the rest of our analysis, so when it is violated the entire model is invalid.
+#   The good news is that many relationships in nature are at least approximately linear.
+#   We can examine this assumption by looking at a scatter plot of the two variables, and by examining the residual plot.
+# 2. Independence of Errors:
+#   We assume that the errors added to our model (the ϵj terms) are all independent.
+# 3. Equal Variance of Errors:
+#   We assume the standard deviation of the errors is the same for all values of the explanatory variable xj. 
+#   Without this assumption we would need to perform what is called a weighted least squares on our data- which generally requires more data than a normal linear regression. 
+#   This won’t be covered in the class. The residual plot will reveal if this assumption is at least approximately valid.
+# 4. Normality of Errors: 
+#   The least important assumption is that the errors are normally distributed. 
+#   If this is violated it doesn’t have a effect on the best fit parameters, only in the estimation of the confidence intervals for those parameters. 
+#   We can verify this assumption by making a QQ plot of the residuals.
+
+
+#** 11.3.1 Successful Linear Regression ----
+# In this notebook we will examine some metrics to test for how well our linear regression has performed for a set of data.
+
+# To begin we make some fake data which fits the assumptions for linear regression analysis:
+beta0 <- 2.0;
+beta1 <- 1.0;
+x <- seq(0,10,0.05);
+y <- beta0 + beta1*x + rnorm(length(x), 0.0, 1.0); ## random, independent normally distributed noise
+plot(x,y)
+
+# We may know run a linear regression in R using the lm command,
+lm.results <- lm(y~x);
+
+# we store the results of the linear regression in the lm.results object.
+# If we want a quick summary of the results we can use the summary command:
+summary(lm.results)
+
+# We may get confidence intervals on the parameters by running:
+confint(lm.results, level=0.95)
+
+# The following command is part of my package (HannayIntroStats) and makes a few plots automatically which are useful in determining whether linear regression is working on a data set.
+diagRegressionPlots(lm.results)
+
+# As expected since we created this fake data so that it satisfies each of the assumptions of regression it passes each of our tests. 
+# Starting with the histogram and QQ plot of the residuals. 
+# We can see from these two plots that the errors are approximately normally distributed (mound shaped histogram, and QQ plot roughly along the line).
+
+# The top right plot shows the residual values as a function of the explanatory variable. 
+# We will see this plot will help us check for equal variance in the errors. 
+# In this case the width of the residuals is approximately the same as the x variable increases. 
+# This indicates the variance in the noise terms is constant. 
+# This plot also shows a flat tube of points centered around zero. 
+# If this is not the case then this indicates the first assumption (linearity) is violated.
+
+# The bottom right plot shows the data plotted against the regression line model.
+
+
+#** 11.3.2 What Failure Looks Like ----
+# Now we will see what it looks like when the assumptions of linear regression are violated, and how we can tell from our diagnostic plots. 
+# These topics are roughly in the order of how serious these errors are.
+
+
+#*** 11.3.2.1 Not a Linear Relationship between Variables ----
+# The most serious error occurs when we attempt to fit a linear regression line to data which clearly does not show a linear pattern. 
+# Many times this can be avoided by making a scatter plot of the data before you attempt to fit a regression line. # example,
+#   in the below plot we can see that their clearly is a nonlinear relationship between the variables x and y.
+y <- beta0 + beta1*sin(x) + rnorm(length(x), 0.0, 1.0);
+plot(x, y)
+
+# Let’s assume we ignores this and fit a linear model anyway.
+lm.fail.notlinear <- lm(y~x)
+summary(lm.fail.notlinear)
+
+# Now we can make some diagnostic plots for linear regression.
+diagRegressionPlots(lm.fail.notlinear)
+
+# Notice that the residual plot in the top right shows a clear pattern. 
+# This is a sign that the relationship between the variables is nonlinear, and a linear model is not appropriate.
+
+
+#*** 11.3.2.2 Errors are not independent ----
+# The next most important assumption for linear regression models is that the errors are independent. 
+# If this isn’t the case then the errors can give false trends when we fit the model.
+noise <- generateCorrelatedErrors(n=length(x), lag=5, sigma=2.0)
+y <- beta0 + beta1*x + noise
+plot(x, y)
+
+# Lets make the linear model as usual.
+lm.fail.notind <- lm(y~x)
+summary(lm.fail.notind)
+
+# Now we can make some diagnostic plots for linear regression.
+diagRegressionPlots(lm.fail.notind)
+
+# Notice that the residual plot has a weird shape/pattern to it. 
+# This is because the noise terms are not independent! 
+# These not independent random effects invalidate our linear model in this case. 
+# Typically, we can look for non-independence by looking for any non-random effects on the residual plot.
+
+
+#*** 11.3.2.3 Unequal Variance in Residuals ----
+# The next assumption of linear regression analysis is that the variance (or standard deviation) of the error terms is constant across all values of the explanatory variable. 
+# This is easily checked by looking at the residual plot. 
+# If the variance is not constant then the residual plot rectangle will change widths as the explanatory (x) variable changes.
+noise <- rnorm(length(x), sd=0.1)*(1.0+x)
+y <- beta0 + beta1*x + noise
+lm.fail.var <- lm(y~x)
+diagRegressionPlots(lm.fail.var)
+
+# In the above plot the residuals variance increases with x. 
+# This issue is correctable if we use weighted least squares analysis.
+
+
+#*** 11.3.2.4 Non-Normality in Noise ----
+# This is not a huge concern for most linear regression models as they are not very sensitive to this assumption. 
+# However, our error terms need to be roughly mound shaped and continuous in nature to apply linear regression. 
+# If these are violated severely it will appear in the QQ plot and histogram of the residuals.
+
+# For the example below I use a error (noise) term which follows a t distribution with two degrees of freedom (this has heavier tails then the normal distribution). 
+# Since our assumed regression model has less density in the tails our model will underestimate the chances of having large deviations from the curve.
+noise <- rt(length(x), 2) #rbimodalNormal(length(x),sigma1=0.25, sigma2=0.25)
+y <- beta0 + beta1*x + noise
+lm.fail.normal <- lm(y~x)
+diagRegressionPlots(lm.fail.normal, cex=0.5)
+
+
+#*** Exercise 11.5 ----
+#   File - Chapter 11.R 
+
+
+#*** Exercise 11.6 ----
+#   File - Chapter 11.R
+
+
+#_---- 
+
+
+#* 11.4 Goodness of Fit --------------------------------------------------
+# The last topic we will discuss for linear regression are some measures of the goodness of fits for our models. 
+# These measurements are focused on how well the model performs in predicting the response variable in terms of the explanatory variable.
+
+
+#** 11.4.1 Correlation and Slope ----
+# You may have heard the term correlation used before. 
+# I have focused mainly on the slope of a regression model β for measuring the strength of a linear relationship between two continious variables. 
+# However, the correlation coefficient is also a meaure for this. 
+# In fact the two of them are explicity related: 
+#   β = ρ*σ[Y]/σ[X]     ⟹     ρ = β*σ[X]/σ[Y]
+#   ρ = Pearson's correlation coefficient
+#   σ[Y] = Standard deviation of the response variable
+#   σ[Y] = Standard deviation of the explanatory variable
+# Notice that if we have σX=σY then ρ=β. 
+# An easy way to get σ[X] = σ[Y] is to scale both the explanatory and response variables. 
+# Recall that the scale command in R subtracts the mean of a column from the values and divides by the standard deviation. 
+# The end result is a value which has mean zero and standard deviation equal to one σ[x] = σ[y] = 1.
+at2 <- scale(flightNYC$air_time)
+dist2 <- scale(flightNYC$distance)
+#Fit a linear model and show only the computed slope
+lm(at2~dist2)$coefficients[2]
+
+# We can find the correlation between two variables using the corr command in R.
+cor(flightNYC$air_time, flightNYC$distance)
+
+# The correlation coefficient will always have the property that −1≤ρ≤1. 
+# Values near 1 indicate a strong positive linear relationship, and values near -1 indicate a strong negative relationship.
+
+# The correlation coefficient is especially useful when trying to compare the strength of a linear relationship between regression models. 
+# Suppose we have formed two models y=βx1+α and y=βx2+α and we want to know which of these exhibits a stronger linear relationship. 
+# Comparing the slopes directly isn’t a good idea as the two explanatory variables x1 and x2 may have different units. 
+# Looking at the correlation coefficients removes the units and allows for a direct comparison.
+
+
+#** 11.4.2 R2 Coefficient of Determination and Measuring Model Fits ----
+# The residual standard error is given by 
+#   σ = √∑[N i=1] * r**2[i] / (N−k)
+#   where
+#     N is the number of data points and
+#     k the number of parameters estimated.
+# This quantity gives us an idea about the raw accuracy of the regression model in its predictions. 
+# In other words the residual standard deviation is a measure of the distance each observation falls from its prediction in the model.
+
+# We can also describe the fit of a model using the R2 value, which gives the fraction of the response variance explained by the statistical model. 
+# The unexplained variance is the variance of the residuals σ**2[R], and let σ**2[Y] be the variance of the response variable data, then 
+#   R**2 = 1 − σ**2[R] / σ**2[Y] = ρ**2.
+
+# This quantity is just the correlation coefficient ρ squared.
+
+# If the model tells us nothing about the relationship we expect to find R2=0 meaning none of the variation in the response variable is explained by the model. 
+# On the other hand if the y values lie perfectly along a line we would have ^σ=0 which gives R2=1. 
+# In general the values of R2 will lie somewhere between zero and one.
+
+# One final note about the goodness of fit measures. 
+# They are often incorrectly used as a total measure of the utility of a model. 
+# While it is true that a linear model with a small R2 value cannot precisely predict the response variable, these models can still tell us important things about our data (and life in general). 
+# As an example lets consider some (fake) data on the life expectancy of people given how many pounds of bacon they have consumed.
+head("bacon_data")
+plot(bacon_data$bacon.lbs, bacon_data$life.expectancy)
+lm.bacon <- lm(life.expectancy ~ bacon.lbs, data=bacon_data)
+summary(lm.bacon)
+
+confint(lm.bacon)
+
+plot(bacon_data$bacon.lbs, bacon_data$life.expectancy)
+abline(lm.bacon, col='blue')
+
+# In this analysis of the effect of eating bacon is on life expectancy, we don’t expect for the amount of bacon to completely explain why one person lives longer than others. 
+# Therefore, we expect the bacon consumption will have a low R2 value. 
+# Indeed we can see above that it does have a low value. 
+# However, we also find that for every pound of bacon we eat we expect to lose between 51 days and 21 days of life. 
+# According to our fake data bacon doesn’t predict how long you are going to live, but it does have important effects on your life expectancy.
+
+# The lesson here is that we use linear regression to understand complex phenomena we should not expect to have high R2 values (no free lunches). 
+# This doesn’t always mean those models are useless– it depends on what you are trying to learn by forming the model!
+
+
+#_---- 
+
+
+#* 11.5 Using Regression Models to Make Predictions ----------------------
+# In many cases you do want to use linear regression on a data set to forecast the response variable (y) given a value for the explanatory variable (x). 
+# In the most basic sense we can do this by just plugging the new x variable into our best-fit regression model. 
+# example, 
+#   let’s think out the flight data set again and say we want to predict the flight time for a flight which will travel 1400 miles. 
+#   Well our best fit values for the intercept and slope are:
+res.flying$coefficients
+
+
+# Therefore, we can plug in our x value to the linear model: 
+# T = βD + α = 0.1264∗(1400) + 18.19
+# which gives an estimate of 195.15 minutes of flying time.
+
+# However, we can do better than just providing a single best estimate for the flying time. 
+# Our statistical model can also give a prediction interval which is likely to contain the true flying time. 
+# This involves factoring in the size of the error terms ϵi in our regression model 
+#   y[i] = βx[i] + α + ϵ[i].
+
+# Of course we have assumed that the ϵi terms are normally distributed with a mean 0 and a constant standard deviation σϵ.
+
+# Therefore, a good start is to form the 95% prediction interval using the empirical rule 
+#   (βx[new] + α − 2σ[ϵ],βx[new] + α + 2σ[ϵ]) ≈ 0.95.
+
+# However, this is slightly more complicated by the fact that we have some uncertainty in both the slope and y-intercept parameters (β,α) in addition to our imperfect knowledge of σϵ. 
+# For one this means we should be using a t distribution instead of the empirical rule if we want to be precise: 
+#   (βx[new] + α − t(0.025,N−2)se(y[new]),βx[new] + α + t(0.025,N−2)se(y[new])) ≈ 0.95.
+
+# The standard error of ynew is given by the rather complicated formula: 
+#   y[new] = se * √1 + 1/N + (x[new] − ¯x)**2 / (N−1)s**2[x]
+#   where 
+#     N is the sample size, 
+#     ¯x is the mean of the x variable, 
+#     sx is the standard deviation of the x variable and 
+#     se is the standard error of the residuals.
+
+# Thankfully, we should not ever have to compute this by hand (or remember this formula). 
+# However, notice that se(ynew)≈se when xnew≈¯x and otherwise the size of the prediction interval will grow. 
+# This tells us we can make the most accurate predictions for x near the average value of x in the data set. 
+# Also, notice that se(ynew)≈se for very large data sets N→∞. 
+# In these cases we can use the simplified rule of thumb for prediction intervals: 
+#   Rule of Thumb: ynew ± 2se
+
+# We can find se (the standard error for the residuals) for our model using the command:
+sd(res.flying$residuals)
+
+# or by finding the correct line in the summary:
+summary(res.flying)
+
+# Therefore for our flying case we can estimate our prediction interval for the flying time for a 1400 mile trip as 195.15±2∗12.86=(169.43, 220.87).
+
+# If we require more accuracy (want to use the more complicated formula) then we can use the software to form the prediction interval. 
+# In R we can find the prediction interval with the following command:
+predict(res.flying,data.frame(distance=1400), interval='predict', level = 0.95)
+
+# Notice this is almost exactly the same interval that our rule of thumb produced. 
+# If we want to form prediction intervals for a range of x values we can do this as well. 
+# The below code forms the prediction intervals and plots them alongside the data.
+
+##How to make prediction intervals for flight times
+values.predict = seq(100,3000,10) ##make a sequence of value to predict
+predict.flying = predict(res.flying, data.frame(distance=seq(100,3000,10)), interval='predict', level = 0.95);
+plot(flightNYC$distance, flightNYC$air_time, 
+     main='Flying Distance versus Time Linear Model', xlab='Distance (Miles)', ylab='Time (Minutes)', 
+     col='blue', cex=0.3)
+lines(values.predict, predict.flying[, "lwr"], col='black')
+lines(values.predict, predict.flying[, "upr"], col='black')
+
+
+#*** 11.5.0.1 Some Warnings about Prediction Intervals ----
+# Some caution is advised when forming prediction intervals for regression models. 
+# Here are some warnings:
+#   - Prediction intervals are very sensitive to the assumptions of linear regression being strictly satisfied. 
+#     example, 
+#       the residuals really need to have a normal distribution for our intervals to form accurate intervals.
+#   - Be careful using prediction intervals for value of the x values which are outside the range of observed values. 
+#     Just because the assumptions of linear regression are satisfied for the data shown doesn’t mean they will be outside the range shown.
+
+
+#_---- 
+
+
+#* 11.6 Homework ---------------------------------------------------------
+#** 11.6.0.1 Concept Questions: ----
+#   File - Chapter 11.R
+
+
 # ____----
 
 
-load(paste(path_dataset, "drug_use", ".Rdata", sep = ""))
+# Chapter 12 Regression with Categorical Variables ------------------------
+#* 12.1 Introduction -----------------------------------------------------
+# Thus far in our study of statistical models we have been confined to building models between numeric (continuous) variables. 
+#   y[i] = β*x[i] + α + ϵ[i].
+# However, we don’t actually need to restrict our regression models to just numeric explanatory variables. 
+# To extend our models to include categorical explanatory we will use a trick called one-hot-encoding of our categorical variables.
 
-load(paste(path_dataset, "drug_use", ".rda", sep = ""))
 
-source(paste(path_add_func, "t.test.hand", ".R", sep = ""))
+#_---- 
+
+
+#* 12.2 One Hot Encoding -------------------------------------------------
+# Let’s consider the food_college data set contained in the class R Package.
+data("food_college")
+
+# This data set contains 125 survey responses from college students on their food choices. 
+# For now we will focus on two columns the weight column gives us the self reported weight of each student (or at least the 120 students who answered that question) and the Gender column which is categorical with levels (Female and Male).
+
+# Suppose we want to look for a difference in the average weight of the students based on the gender variable. 
+# We are thus looking for a relationship between a continuous and categorical variable. 
+# Therefore, we should make a boxplot to look for this relationship graphically:
+boxplot(food_college$weight~food_college$Gender, col="skyblue", 
+        main='Weight of College Students', xlab="Gender", ylab="Weight (lbs)")
+
+# Based on this boxplot it looks like (as we might expect) the average weight of Males is greater than the average weight of Females. 
+# However, as usual we want to consider the possibility that random chance could have generated the effects we see. 
+# Let’s see how many samples we have in each of the categories:
+table(food_college$Gender)
+
+# Looks we have a healthy sample size in each category. 
+# As you might have gathered from the title of this chapter we can adapt our regression techniques to study this data set. 
+# We want to build a model of the form: 
+#   y[i] = β*x[i] + α
+# but we can’t use the names “Female” and “Male” as our x variable directly as β∗Female + α doesn’t make sense!
+  
+# The trick here (called one hot encoding) is to recode our categorical variables with N levels into N−1 indicator variables δ[L i] which give the value 1 if observation i is in category L and zero otherwise. 
+# Thus we could write our regression as:
+#   weight[i] = β1*δ[Female i] + β2*δ[Male i] + α
+
+# However, we will see that we only really need 1 (or generally N-1) indicator variable for our system. 
+# After all in our data set if you are NOT male then you must be female. 
+# Thus we can simplify our model to:
+#   weight[i] = β*δ[Male i] + α
+
+# This model will give the value α if the subject is female and β(1) + α = β + α if the subject is male. 
+# Thus, 
+#   α will be the mean weight of the 0 category (Females here) and 
+#   β will be the "difference in weights between the two categories".
+
+# R will perform this encoding of categorical variables for you automatically as long as it knows that the variable being put into the regression should be treated as a factor (categorical variable). 
+# You can check whether R is treating a variable as a factor (categorical) using the class command:
+class(food_college$Gender)
+
+# Since this variable is already stored as a factor type R will take care of the encoding for us automatically. 
+# Let’s go ahead and fit our simple model now:
+lm(weight ~ Gender, data = food_college)
+
+# Just as with simple regression we can take a look at the summary of the linear model.
+lm.weight = lm(weight ~ Gender, data = food_college)
+summary(lm.weight)
+
+# More importantly, we can compute the confidence intervals for the slope and intercepts. 
+# Remember that the intercept gives an estimate for the mean weight of females in our data set and the slope gives the difference in weights between the males and females (on average).
+confint(lm.weight, level = 0.99)
+
+
+# Based on this conference interval we can see that the slope parameter is somewhere between 20.72 and 47.3 pounds. 
+# Therefore, we expect that if we repeated this sample we would still find that Males out weight females (on average) by somewhere between these values. 
+# Generally, a slope confidence interval which contains zero means that if we repeated the experiment we might find the reverse trend as presented in our boxplot.
+
+#   Later in this class we will see that performing a regression of this type (continious variable compared across two categories) is equivalent to performing a statistical hypothesis test called a t test under the assumption that the variance of both groups is equal. 
+
+
+#*** Exercise 12.1 ----
+#   File - Chapter 12.R 
+
+
+#** 12.2.1 Example: Exercise and Weight ----
+# Now lets consider the effect of (self-reported) exercise on weight in college students. 
+# xercise information is stored in the exercise column of the food_college data set. 
+# It is a categorical variable with five levels. 
+# The students were asked the question: how often do you exercise in a regular week?
+#   + 1: Everyday 
+#   + 2: Twice or three times per week 
+#   + 3: Once a week 
+#   + 4: Sometimes 
+#   + 5: Never
+
+# Let’s take a look at how many observations we have our each level of this variable.
+table(food_college$exercise)
+
+# Here is a boxplot of this data:
+boxplot(food_college$weight ~ food_college$exercise, 
+        main = "Exercise and Weight", ylab = "Weight (lbs)", xlab = 'Exercise', col = 'cyan')
+
+# Also, the below code discovers that we have sum(is.na(food_college$exercise)) who did not answer this question. 
+# They will need to be removed from consideration.
+sum(is.na(food_college$exercise))
+
+# Create a new data set with missing entries removed
+f2 = food_college %>% select(exercise, weight, Gender, GPA) %>% na.omit()
+
+# Notice that only the first three options were reported on in this data set (nobody answer with the 4 or 5 options in the survey). 
+# To build our regression model we want something of the form: 
+#   weight[i] = β1*δ[E2 i] + β2*δ[E1 i] + α
+
+# The works out daily (exercise==1) describes everyone that doesn’t workout 2-3 times or once a week and is therefore included in the α term.
+
+# To make sure that R treats the exercise variable as a categorical one in our regression model we should check what R thinks this variable is:
+class(f2$exercise)
+
+# Notice R thinks this is a discrete numeric variable (incorrectly). 
+# Therefore we should correct this before performing a regression. 
+# This can be done with the as.factor function.
+f2$exercise = as.factor(f2$exercise)
+
+# Now we can proceed with the regression analysis in R.
+lm.exercise = lm(weight ~ exercise, data = f2)
+summary(lm.exercise)
+confint(lm.exercise)
+
+# This confidence interval shows us that we can’t conclude we have any difference in the average weight of these three categories as the confidence intervals contain both positive and negative values. 
+# It also gives us a confidence interval for the average weight of those in category 1 (exercise everyday), as this is the intercept.
+
+#   Later we will see that a comparison between a continious response variable and a categorical response variable with more than two levels is called an ANOVA analysis (one-way). 
+#   ANOVA is an acronym for ANalysis Of VAriance. 
+#   This is a very common statistical technique used in science and business applications. 
+#   For us this is just a special type of regression. 
+
+
+#*** Exercise 12.2 ----
+#   File - Chapter 12.R 
+
+
+#** 12.2.2 Housing Prices by Neighborhood ----
+# As another example, let’s consider the Ames housing data set again. 
+# We will build a regression model for the Sales Price (log10) as iot depends on the Neighborhood.
+
+# We can begin by building a boxplot of this.
+data("AmesHousing_Regression")
+boxplot(AmesHousing_Regression$SalePrice.log10 ~ AmesHousing_Regression$Neighborhood, 
+        main='Sales Price for Different Neighborhoods', cex=0.5, las=2, col='skyblue', ylab='Sales Price log10', xlab='')
+
+# Based on this plot we might ask if we have sufficient evidence to conclude that the neighborhood effects the sales price of houses?
+
+# We can write this as a multiple linear regression model, like-so:
+lm.houseNeig = lm(SalePrice.log10 ~ Neighborhood, data = AmesHousing_Regression)
+summary(lm.houseNeig)
+
+# Let’s take a look at the 95% confidence intervals for the coefficients. 
+# Those Neighborhoods whose CI are all negative we have considerable evidence that they tend to be priced lower than the reference neighborhood (Blmngtn). 
+# Those will all positive values tend to be priced higher on average.
+confint(lm.houseNeig)
+
+# Later in the course we will learn about statistical hypothesis testing, then we can look at the last line last-line for the F-statistics. 
+# This tells us if we have sufficient evidence that the mean sales price differs based on the neighborhood (as that is our only explanatory variable now). 
+# The small p-value here tells us to reject this null hypothesis here. 
+# Apparently, the real-estate agents are correct the location does matter.
+
+
+#** 12.2.3 Advanced: Exercise and Gender Together ----
+# In our above example we had an obvious confounding variable (gender). 
+# We have already shown that the gender of the participants matters quite a bit in determining their weights. 
+# Lets see how many males and females we have for each of the three exercise categories.
+table(f2$exercise, f2$Gender)
+
+# Looking at this table we can see that the dip in the mean weight for exercise group 2 might not be caused by any real effect of exercise but just the fact that this group has a larger percentage of female participants (who tend to weight less).
+
+# In studying the effect of exercise frequency on the weight of our participants we should also account for the natural weight differences between genders.
+
+# We can account for this by adding the two models we have developed together.
+#   W[i] = β1*δ[Male i] + β2*δ[E2 i] + β3*δ[E3 i] + α
+# Notice that α will now be the average weight of a female who exercises daily (exercise category 1). 
+# The β1 term will show the effects of gender on weight without accounting for exercise. 
+# The exercise coefficients give the shifts in the mean weights caused by exercise at that frequency (relative to the weight of a female who exercises daily).
+
+# Before you run more complicated models like this one it is generally a good idea to think about what you expect to see in the results. 
+# Here I am assuming that exercise more frequently will reduce weight. 
+# For this model I would expect to see that β1≈30 because that is the difference in the mean weights between the genders. 
+# If exercising more frequently has a strong effect on weights we would expect that β2,β3 are positive. 
+# Moreover, if the frequency matters quite a bit then β3>β2.
+
+# Now that we have designed our model we are ready to create it. 
+# This is pretty fast and easy in R.
+lm.control = lm(weight ~ Gender + exercise, data = f2)
+summary(lm.control)
+
+# From this we can see the best fit parameters follow our expectations in that β3>0 and β3>β2. 
+# However, we still see that β2<0. 
+# Moreover, we really shouldn’t look to closely at these best fit values as they are certain to change if we recollect our data.
+
+# Looking at the confidence intervals we can see that we can’t conclude much about exercise frequency based on this data set.
+confint(lm.control)
+
+# Both of our confidence intervals for exercise contain zero. 
+# This means that we don’t have enough data to see a consistent effect OR perhaps no consistent effect exists. 
+# Also, notice these confidence intervals are pretty wide, especially for the exercise3=β3 parameter. 
+# This is because we only have a very small sample in this category (6 females and 4 males).
+
+# Notice, as we include more factors in our models we will steadily reduce the samples we have in each category. 
+# This will in turn lead to larger standard errors and confidence intervals for the parameters. 
+# It might seem like a good idea to include many components in our models but you need to exercise some prudence in doing so. 
+# Including too many components will whittle our data set into small chunks which won’t be large enough for us to distinguish much from the data.
+
+#   This type of analysis with two categorical explanatory variables is also a type of ANOVA. 
+#   This time it is called a two-way ANOVA. 
+#   Once again we see it is just a special case of regression. 
+
+
+#*** Exercise 12.2 ----
+#   File - Chapter 12.R 
+
+
+#_---- 
+
+
+#* 12.3 Diagnostics ------------------------------------------------------
+# When we use form regression models where the explanatory variables are categorical the same core assumptions 
+# (Linearity, Independence of Errors, Equal Variance of Errors and Normality of Errors) 
+# are being used to form the model. 
+#   y[j] = [L−1∑i=1]β[i]*δ[ij] + α + ϵ[j]
+
+# We can still evaluate these by looking at histograms, qqplots of the residuals (Normality of the Residuals) and the residuals plotted as a function of the explanatory variable (Residual plot). 
+# In the residual plot (which should now be a box plot instead of a scatter plot) we should see no obvious trends as well as roughly equal variance (spreads) as a function of the explanatory variable.
+
+# The required plots should still be formed by using the diagRegressionPlots command in my R package. 
+# Test this out for yourself and see how you might expect violations of the conditions to manifest in the diagnostic plots.
+
+# However, note the bottom right plot is no longer useful for categorical explanatory variables. 
+# Below I show the diagnostic plots for the exercise versus weight regression we performed above.
+diagRegressionPlots(lm.exercise)
+
+#   The bottom right plot in oour regression diagnostics is not useful for categorical explanatory variables. 
+
+
+#_---- 
+
+
+#* 12.4 Homework ---------------------------------------------------------
+#   File - Chapter 12.R 
+
+
+# ____----
+
+
+# Chapter 13 Multiple Regression Models -----------------------------------
+#* 13.1 Introduction to Multiple Regression Models -----------------------
+# We have learned about simple linear regression where we have a single explanatory and response variable, which we assume are related in a linear manner. 
+# This gives us a model of the form: 
+#   y = α + β*x + ϵ[i]
+#   where 
+#     y is our response variable, 
+#     x is the explanatory variable. 
+# The parameters (α,β) the y-intercept and slope respectively are fit to the data to minimize the least-square error. 
+# Finally, the term ϵi is the random noise which is assumed to be Gaussian (Normal) distributed with equal variance.
+
+# However, in analyzing data we are often interested in building a model for a system where more than one input of explanatory variable may be important. 
+# example, 
+#   when building a model to predict the value of a stock-price we would want to include several economics indicators (market measures, GDP, etc). 
+# To build a model of the size of the freshman class at Schreiner we would want to include many factors such as the number of high school graduates in the area, economic health of Texas, etc.
+
+# Models with more than one explanatory variable are called multiple regression models. 
+# They take the general form: 
+#   y = α + β1*x1 + β2*x2 + ... + βn*xn + ϵ[i]
+
+# Often the most important decision to make when building a multiple regression model is deciding what explanatory variables (x1,x2,...xn) to include in the model. 
+# It is sometimes tempting to just include everything that you feel might be relevant. 
+# However, this will lead to very complex models which are difficult to interpret, and can lead to exceptionally poor models due to the dangerous condition called over-fitting. 
+# A model which has been over-fit can be exceedingly dangerous as it will appear to be very precise when considering the collected data but may generate exceptionally poor estimates when used to make new predictions.
+
+# A key decision in building a regression model is to deciding what variables to include in the model.
+
+# The starting point for this decision should always be common sense. 
+# You should never include an explanatory variable which you don’t have good reason to suspect will have any effect on the response variable (output). 
+# example, 
+#   if we are building a model to predict the Schreiner freshman class size, it would make no sense to include an explanatory variable of the number of ice cream cones sold in Texas the previous year. 
+#   Ice cream sales should be totally unrelated to the freshman class size, so anything we find would likely be spurious.
+
+# We also need to ensure that any explanatory variables we include are at least approximately linearly related to the response variable. 
+# We checked for this in simple linear regression using a scatter plot of x versus y. 
+# If this scatter plot looks roughly like a line then it makes sense to build a simple regression model.
+
+# For multiple regression we have a simple plot we can make to look for relationships between our variables. 
+# To make this plot we need to be considering numeric variables (just like a scatter plot), therefore in the below command I am using the command grabNumeric from my package. 
+# This takes a data frame (spreadsheet) and removes any categorical variables from it, leaving only the numeric values.
+
+#   Models can also suffer from a condition known as underfitting this occurs when some significant explanatory variable(s) are not included in the model. 
+#   This to can lead to poor predictions when use to predict new data. 
+
+# For these notes I will be using the Ames Housing data set from my package. 
+# The columns of this data set are:
+colnames(AmesHousing_Regression)
+
+# The Neighborhood column is categorical, the others are numeric. 
+# The goal is to build a model which can predict the sales price of a house using the SQFT, Bathrooms and Neighborhood information. 
+# It makes logical sense that the size, number of bathrooms and neighborhood would each effect the sales price of a house.
+
+plot(AmesHousing_Regression[, sapply(AmesHousing_Regression, is.numeric)], 
+     cex = 0.3, main = 'Multiple Regression EDA', col = 'lightblue')
+
+plot(grabNumeric(AmesHousing_Regression), cex=0.3, main='Multiple Regression EDA', col='lightblue')
+
+# This plot shows the relationship between each of these factors and the sales price, and also looks for relationships between the variables themselves. 
+# Since we have three numeric variables here we get a 3 by 3 grid of plots. 
+# The plot in the first row, second column shows the SQFT on the y-axis and the sales price on the x-axis (notice how you can see this from looking at the diagonal labels).
+
+# Now that we know how to read this plot, what are we looking for? 
+# Well first, we want to check if our response variable (sales price) at least approximately linearly depends on the explanatory variables (bathrooms and SQFT). 
+# This is shown in the 2nd row of our grid. 
+# Each of these look roughly like we could fit a line to the trends.
+
+# The next thing we want to look for is any strong relationships between our explanatory variables (SQFT and Bathrooms). 
+# This is shown in row 1, column 3 as bathrooms versus SQFT and in row 3, column 1 as SQFT vs bathrooms. 
+# From these graphs it looks like we have a pretty solid relationship between the number of bathrooms and the square feet of the house. 
+# This also makes some logical sense as bigger houses usually have more bathrooms.
+
+# This relationship between these two variables means that we should really only include one of them in our multiple regression model. 
+# This condition is called multicollinearity between these two variables. 
+# In general, this is a bad thing and this means we really shouldn’t include both of these variables together in our regression models (we will ignore this below for the sake of demonstration).
+
+# Practically, this means that adding bathrooms to our model won’t really improve our predictions much: 
+#   if we know the square footage we have a pretty good idea of the bathrooms already.
+
+# We can also get an idea of the multicollinearity of our model using a correlation matrix. 
+# Here we find the linear correlation between all sets of variables in the data set. 
+# The correlation is a numerical measure of how much our scatter plot looks like a line. 
+# It will range between the values of [-1,1] with positive one meaning all the data lies along a perfect line with positive slope and -1 meaning the data lies along a line with a negative slope (decreasing relationship)
+
+# The below code forms a correlation matrix for the housing data.
+cor(grabNumeric(AmesHousing_Regression))
+
+# As you can see all of these variables are positively related. 
+# The diagonal values will always be all ones, as every variable is perfectly correlated with itself.
+
+# We can form a graphical version of this correlation matrix using:
+library(corrplot)
+
+corrplot(cor(grabNumeric(AmesHousing_Regression)))
+
+# You may need to run the command:
+install.packages('corrplot')
+
+# to be able to make a correlation plot yourself. 
+# You will only need to do this one time.
+
+#   Mutual funds are created by bundling a bunch of individual stocks together. 
+#   The idea is that budling the stocks together will can average out some of the flucuations and get a lower risk investment. 
+#   However, someone needs to choose exactly which stocks to include in the fund and how much money should be invested in each companies stock. 
+#   Typically, stock traders will design a mutual fund and record how well it would have done in the market for some trial period (say 1 year), then the proposed mutual funds which perform best over that trial period are offered to investors for us to put our money in. 
+#   Typically, they will advertise the average return of the mutual fund achieved during the trial period. 
+#   Most of the time these funds will have very impressive returns.
+
+#   However, once the investors put their money into the funds they typically do significantly worse then the rates first reported. 
+#   We can understand this as thinking of the trial period as fitting the models. 
+#   The limited amout of data in the trial period makes it very easy to overfit the model. 
+#   Thus, the predictions quickly become inaccurate when we move outside the trial period. 
+
+#   We do not have the time to properly discuss under/over fitting for models in this course. 
+#   However, when statistical models are built to make real world predictions generally the modeler will break their data into a training and test set. 
+#   The train data is used to build the model and the test data is NEVER used in building the model. 
+#   Finially, when the modeler wants to see how good of a predictive model they have built they use the test data to generate predictions and see how well the model does using data it has never seen before. 
+
+
+#** 13.1.1 Housing Prices (Review of Simple Regression Results) ----
+# Let’s return to the housing data set and see if we can improve our model by including some additional factors. 
+# In the simple linear regression notes we used linear regression to understand the relationship between the sales price of a house and the square footage of that house. 
+# The data set comes from Ames, Iowa house sales from 2006-2010. 
+# First, lets read this data in and make a scatter plot of the sales price versus the square footage.
+data("AmesHousing_Regression") # from HannayAppliedStats package
+house <- AmesHousing_Regression # rename this data
+house <- dropLowFactors(house, factor.column = 3, threshold = 30) # from HannayApplied Stats drop all neighborhoods with less than 30 data points
+head(house)
+
+# We can see this has the log10 of the selling price, the square footage and the number of bathrooms in the house.
+plot(house$Square.Feet, house$SalePrice, 
+     main='Real Estate Prices in Ames Iowa (Color by Neighborhood)', xlab='Square Footage (log10)', ylab='Sale Price ($) log10', col=house$Neighborhood, cex=0.5)
+
+# As expected we can see from the plot that square footage is somewhat important in determining the sales price of the house, but we can see that their is significant variation in the sales price for any given sqft size. 
+# Let’s try and build a linear model for the relationship between the sqft of the houses and the sales price.
+res.house = lm(SalePrice.log10 ~ Square.Feet.log10, data = house)
+summary(res.house)
+
+# As we saw in the simple linear regression notes this is a fine model for the sales price, but notice the goodness of fit measurement R2 is only about 0.52. 
+# This means that we cannot precisely predict the selling price of a house given only the square footage. 
+# This makes sense practically as we expect the size of a house to be important, but many other factors will effect the price.
+diagRegressionPlots(res.house, cex = 0.5)
+
+# Multiple regression allows us to include some more information for our regression model to use in the predictions.
+
+
+#** 13.1.2 Multiple Regression (Including Bathrooms) ----
+# To improve our model we might want to also include the number of bathrooms in the house. 
+# Thus our model to the sales price of a house becomes 
+#   log10(SP) = α + β1*log10(SQFT) + β2*BATH,
+#   where SP is the sales price of the house.
+
+# We can get an idea graphically about the combined effect of bathrooms and square footage of the house by making a colored scatter plot of this data:
+plot(house$Square.Feet.log10, house$SalePrice.log10, col = house$Bathroom, cex = 0.4,
+     main = 'Sqft versus Sales Price colored by number of Bathrooms')
+legend("bottomright", legend = sort(unique(house$Bathroom)), col = unique(house$Bathroom), ncol = 1, cex = 0.7, pch = 3)
+
+# R makes it very easy to build our multiple linear regression model.
+mlm.house.bath = lm(SalePrice.log10 ~ Square.Feet.log10 + Bathroom, data = house)
+summary(mlm.house.bath) 
+
+# For now let’s figure out how we can interpret these results. 
+# Note ignore the hypothesis testing components of this during the first reading, we will cover that next.
+#   1. First, we can look at the last line of the summary: 
+#       “F-statistic: 1710 on 2 and 2831 DF, p-value: < 2.2e-16”. 
+#     This tells us the results of a statistical test to see if sqft and bathrooms tell us anything about the sales price. 
+#     The null hypothesis of the F-test is that the explanatory variables (sqft, bathrooms) don’t inform us at all about the response variable (sales price). 
+#     The low p-value here tells us we can reject that null hypothesis.
+
+#   2. Notice that the R2 value increased by a small amount (to about 0.55 from 0.52). 
+#     This indicates that adding the bathroom information allowed us to make slightly more precise predictions. 
+#     This is probably not as much as we were hoping for as an increase. 
+#     This will very often be the case when you are building a multiple regression model (more about this later). 
+#     We also should anticipate this based on our EDA, knowing the size of a house tells you roughly how many bathrooms it has, so including the number of bathrooms doesn’t give the model much more information to work with.
+
+#   3. Recall that a slope of zero for an explanatory variable means it has no effect on the response variable. 
+#   We can study the effect of a variable on the sales price by forming the confidence intervals for the coefficients:
+confint(mlm.house.bath, level = 0.99)
+
+# None of these are really close to zero, meaning that each of these factors effects the response variable (sales price).
+
+#   4. Let’s fill in our best-fit model to help interpret the values of the coefficients: 
+#     log10(SP) = 2.828 + 0.727*log10(SQFT) + 0.055*BATH.
+#     This tells us we can expect the log10 of the price to increase by about 0.72 for every time the log10 sqft increases by one and the number of bathrooms is constant. 
+#     For houses with the same square footage but one of them has 1.0 additional bathrooms we can expect the log10 sales price of the house with the additional bathroom to be about 0.055 more.
+
+# In general, we can interpret these coefficients in a similar way we did for the simple linear regression, increase of the explanatory variable by one unit causes a slope increase in the response variable. 
+# The main difference is that we have to say, holding the other explanatory variable constant or fixed.
+
+# These interpretations are a bit messy from a practical standpoint though because of the logarithms. 
+# We can get rid of the logarithms now by taking each side of this equation to the power of 10. 
+#   10log10(SP) = 10^(2.828 + 0.727*log10(SQFT) + 0.055*BATH) ⟺ SP = 10^2.828 * 10^(0.727*log10(SQFT)) * 10^(0.055*BATH)
+# This gives us the best fit model:
+#   SP = 660.89(SQFT)^0.727 * (1.135)^BATH
+# We could then use this formula to help predict the sales price of a house in dollars. 
+# example, 
+#   the model predicts the average house with 2000 square feet and 2 bathrooms would sell for about: 218,000 dollars. 
+# Of course the relatively low R2 value (high residual standard error) tells us to expect significant variation about this estimate in practice.
+
+# We can get an idea on the certainty of our predictions using prediction intervals (just like we did for simple regression)
+predict.sales = predict(mlm.house.bath, data.frame(Square.Feet.log10 = c(log10(2000)), Bathroom = c(2.0)), interval = 'predict', level = 0.95);
+print(10^predict.sales)
+
+# This gives a huge range or 127k to 376k as a predicted sales price for our 2000 sqft, 2 bedroom house. 
+# This is because houses with the same square footage and bathrooms can vary a lot!
+
+
+#** 13.1.3 Diagnostics for Multiple Linear Regression ----
+# The assumptions of simple least squares regression carry over to multiple linear regression. 
+# We can check these by using our diagRegressionPlots command:
+diagRegressionPlots(mlm.house.bath, cex = 0.3)
+
+# These can be interpreted in the same way as simple linear regression, except for the bottom right plot which is pretty meaningless for a multiple regression plot. 
+# You should ignore this bottom right plot for multiple regression plots.
+
+# We will go over some additional pitfalls of multiple linear regression at the bottom of these notes. 
+# In general, you will see that multiple regression opens a statistical can of worms which just isn’t present for simple regression. 
+# However, in many cases this additional pain is worth the effort to obtain better predictions.
+
+
+#_---- 
+
+
+#* 13.2 Multiple Regression with Categorical Variables: Including --------
+# I am no real estate expert, but I do know that the location and neighborhood of a house can make a huge difference in the sales price. 
+# I believe real-estate agents have a saying “Location, Location, Location”. 
+# Therefore we might want to include the neighborhood information into our prediction model for the sales price.
+
+# The below plot shows the sales price versus square footage colored by the neighborhood.
+plot(house$Square.Feet, house$SalePrice, 
+     main = 'Real Estate Prices in Ames Iowa (Color by Neighborhood)', xlab = 'Square Footage (log10)', ylab = 'Sale Price ($) log10', col = house$Neighborhood, cex = 0.5)
+
+# We have seen that we can include a categorical variable into a regression model using One Hot Encoding. 
+# The levels of the Neighborhood variable are.
+levels(house$Neighborhood)
+
+# Let’s see what happens when we build a model for the sales price which includes the neighborhood and the square footage.
+mlm.house.neigh = lm(SalePrice.log10 ~ Square.Feet.log10 + Neighborhood, data = house)
+summary(mlm.house.neigh)
+
+# This is a much longer output. 
+# However, let’s start at the bottom as before. 
+# Once again ignore the statistical hypothesis testing stuff on the first reading.
+#   1. The F test given on the last line tells us that overall that the neighborhood and square footage indeed are associated with the sales price.
+#   2. The R2 value has increased by a fair amount. 
+#     Thus, our model is likely a better predictor.
+#   3. Now lets look at the coefficients. 
+#     You will notice we have a lot more of them! 
+#     Also notice that every neighborhood is listed except the first one “BrDale”. 
+#     When we give a categorical variable to R with N levels (options the categorical variable can take) it will automatically convert this into N−1 “dummy variables”. 
+#     These dummy variables are 1 if the house is in that neighborhood and 0 if it is not. 
+#     So under the hood R is using a model of the form: 
+#       log10(SP) = α + β1*log10(SQFT) + β2*BrkSide + β3*ClearCr + β4*CollfCr + .... + β[N−1]*Timbe
+
+# Where the neighborhood explanatory variables BrkSide, … Timber are either 1 or 0. 
+# So we are basically fitting a different model for each neighborhood. 
+# example 
+#   our model for houses in the BrkSide neighborhood is: 
+#     log10(SP) = 3.08 + 0.6375*log10(SQFT) + 0.039085 
+#   for houses in ClearCtr it is: 
+#     log10(SP) = 3.08 + 0.6375*log10(SQFT) + 0.167238
+# Notice this is because once we know the neighborhood of a house all the other neighborhood dummy variables are zero.
+
+#   4. What happened to the first neighborhood “BrDale”? 
+#     Well, if a house is in BrDale then it is not in any of the other neighborhoods so all those dummy variables are zero. 
+#     So our model for houses in “BrDale” is just:
+#       log10(SP) = 3.08 + 0.6375*log10(SQFT)
+
+#   5. Now that we know where “BrDale” went we can get a better interpretation of what the values of the neighborhood coefficients are. 
+#     If they are positive it means that houses in that neighborhood (of the same square footage) will tend to sell for more money. 
+#     If they are negative then the reverse is true. 
+#     You can see that most of the neighborhoods are positive relative to “BrDale” meaning that perhaps BrDale is not a desirable neighborhood for some reason. 
+#     Mathematically, our models we are building for each neighborhood differ only in terms of the y-intercept value. 
+#     They are a bunch of parallel lines shifted vertically from one another.
+
+# In a simple scenario like this we can avoid the dummy variable interpretation by changing our regression formula to include a +0 part. 
+# This tells R to remove the intercept from the fit. 
+# Notice that this model has all the neighborhoods listed.
+mlm.house.neigh.all = lm(SalePrice.log10 ~ Square.Feet.log10 + Neighborhood + 0, data = house)
+summary(mlm.house.neigh.all)
+
+
+#** 13.2.1 Predictions ----
+# By including the neighborhood information we got a much improved R2 value. 
+# This will improve the precision of our predictions. 
+# Here is a predicted selling price interval for our 2000 sqft house in the BrkSide neighborhood.
+predict.sales = predict(mlm.house.neigh, data.frame(Square.Feet.log10 = c(log10(2000)), Neighborhood = c("BrkSide")), interval = 'predict', level = 0.95);
+print(10^predict.sales)
+
+
+#_---- 
+
+
+# * 13.3 Interactions between Variables -----------------------------------
+# Notice that when we formed our house price model with the neighborhoods included we allowed the y-intercept to change with the neighborhood. 
+# This means each neighborhood is allowed to have a different default price. 
+# However, we had only one slope variable which gives how the square footage effects the sales price. 
+# However, in general we might want to allow each neighborhood to have its own slope variable.
+
+# This is called an interaction. 
+# We want to allow the sqft and neighborhood variables to interact. 
+# Perhaps for some neighborhoods adding square footage changes the prices differently.
+mlm.house.neigh.interact = lm(SalePrice.log10 ~ Square.Feet.log10 + Neighborhood + Neighborhood:Square.Feet.log10, data = house)
+summary(mlm.house.neigh.interact)
+
+# We now have a huge number of coefficients to interpret for our model. 
+# However, just like before the neighborhood ones are dummy variables (either 1 or 0). 
+# Therefore our model take the form: 
+#   log10(SPN) = α + βN + (β + βN)*log10(SQFT)
+# where the N subscripts mean that parameter depends on the particular neighborhood. 
+# example, 
+#   the best-fit model for the “Timber neighborhood” would be: 
+# log10(SPN) = 3.2194 − 0.501458 + (0.591796 + 0.232207)*log10(SQFT)
+
+# Notice that including this interaction term buys us a slight increase in the R2 value for the model. 
+# However, our model is much more complex. 
+# This is a usual trade-off (complexity versus predictive power).
+
+# The topic of how to choose the best model is an entire mathematics discipline called model selection. 
+# Naturally, this can be quite a complicated topic. 
+# The general guide to model selection is a Goldilocks principle: 
+#   "Build a model which is just detailed enough to match your application, and no more complex."
+
+
+#_---- 
+
+
+#* 13.4 Some Pitfalls in Multiple Regression -----------------------------
+# 1. Core assumptions: 
+#   The assumptions of linear regression carry over to multiple regression. 
+#   Significant violations of the assumptions of linearity, independence of errors, normality of errors, or constant variance can all cause problems just like simple regression. 
+#   We can check for these using our diagnostic plots.
+
+# 2. Multicollinearity: 
+#   This occurs when two or more explanatory variables are moderately to highly correlated. 
+#   It complicates the model interpretations and can skew the statistics for it. 
+#   It can be avoided by proper EDA.
+
+# 3. Over-fitting: 
+#   Build as simple a model as possible to describe your data. 
+#   If you include every possible explanatory variable in your model you will begin to model the random effects in your data instead of the actual trends. 
+#   This builds unnecessarily complex models which make incorrect predictions: not a good combination.
+
+
+#   Avoid including explanatory variables in your model which do not improve the fit by a practically significant amount. 
+#   If you add a redundant explanatory variables this will be the case (only a small improvement). 
+
+
+#_---- 
+
+
+#* 13.5 Homework ---------------------------------------------------------
+#   File - Chapter 13.R 
+
+
+# ____----
+
+
+# Chapter 14 Hypothesis Testing: One Sample -------------------------------
+#* 14.1 Introduction and Warning -----------------------------------------
+
+
+
+
+
+
+# ____----
+
+
+load(paste(path_dataset, "AmesHousing_Regression", ".Rdata", sep = ""))
+
+load(paste(path_dataset, "flightNYC", ".rda", sep = ""))
+
+source(paste(path_add_func, "dropLowFactors", ".R", sep = ""))
 
 source(paste(path_shiny, "runHannayApp", ".R", sep = ""))
