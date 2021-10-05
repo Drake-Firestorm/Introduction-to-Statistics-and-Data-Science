@@ -11,12 +11,13 @@
 # mushrooms         nba_pg_2016           nflplays            poincare_bread
 # shot_logs_2014    toad_girth            wine_tasting        NBA_Draft_Data
 # bacon_data        cricket_chirps        alligator           kidiq
-# census.us.pop     food_college          videoGameSales      
+# census.us.pop     food_college          videoGameSales      NBA_Salaries_2017
+# 
 # AmesHousing_Regression                  bad_drivers_cluster
 # Gambling_HW_Normality                   seaice_dec_northern
 # HR_Employee_Attrition                   nba_pgs_all_players_2016
 # Young_People_Survey                     StudentsPerformance
-# 
+# Distel_Turtle_Data                      
 
 
 # https://cran.r-project.org/web/packages/fivethirtyeight/vignettes/fivethirtyeight.html
@@ -6667,6 +6668,467 @@ summary(mlm.house.neigh.interact)
 
 # Chapter 14 Hypothesis Testing: One Sample -------------------------------
 #* 14.1 Introduction and Warning -----------------------------------------
+# We now turn to the art of testing specific hypotheses using data. This is called Hypothesis testing.
+# Unfortunately, hypothesis testing is probably the most abused concept in statistics. 
+# It can be very subtle and should only be used when the question being considered fits snugly into the hypothesis testing framework. 
+# We will see that very often a confidence interval is a better choice and conveys more information than is contained in a statistical hypothesis test.
+
+
+#_---- 
+
+
+#* 14.2 A Starting Example -----------------------------------------------
+# Lets say that we are investigating whether a large chemical company has been leaking toxic chemicals into the water supply of a town aptly called Chemical City. 
+# Let’s say that the toxic chemical is known to stunt the growth of children. 
+# Therefore, we collect a random sample of heights of 3rd Grade children in Chemical City by measuring the heights of 42 children. 
+# Lets load it into R for analysis.
+head(chemical_children)
+hist(chemical_children$Heights, 
+     main='Heights of Children in Chemical City N=42', ylab='Number of Children', xlab='Height in ft', col='lightblue')
+
+# We can estimate the population mean μ for all the 3rd grade children in Chemical City using the sample mean:
+mean(chemical_children$Heights)
+
+# Suppose that we also know from a large study that the mean height for healthy 3rd grade children is μ=3.85 feet.
+# The question we can now ask is whether we have collected sufficient evidence that the growth of children in Chemical City has been stunted? 
+# Could the average height of the children been less than the national average in our sample by random chance?
+  
+# We can now form what is called the null hypothesis H0 we wish to test.
+#   H0 is the hypothesis that the mean height of children in Chemical city is equal to or greater than the national average E[¯X]=μ≥3.85
+
+# The null hypothesis is often the boring hypothesis which doesn’t change the status quo. 
+# The opposite of the null hypothesis is called the alternative hypothesis. 
+# In this example our alternative hypothesis would be:
+#   Ha is the hypothesis that the mean height of children in Chemical city is less than the national average E[¯X]<μ.
+
+# As usual, our first approach will be based on simulations. 
+# We can re-sample of height data to get an idea of how variable our sample mean ¯X will be for children in Chemical City.
+num.sim <- 100000
+many.studies <- replicate(num.sim, mean(sample(chemical_children$Heights, size = 42, replace = TRUE))) # generate a bunch of random sample means
+length(many.studies[many.studies >= 3.85]) / num.sim # find the fraction of random samples which give a value greater than the national average
+
+# Therefore, we can say that their is a small (about 1%) chance that our sample produced a smaller result than the national average by random chance.
+
+my_hist <- hist(many.studies, breaks = 100, plot = F)
+my_color <- ifelse(my_hist$breaks > 3.85, "red", "lightblue")
+plot(my_hist, col = my_color, main = "Sample Averages for Chemical City Children")
+# The red area shows those times we found a sample mean greater than or equal to the national average. 
+# Notice this distribution is mound shaped (normally distributed) this is the CLT at work again. 
+
+
+#_---- 
+
+
+#* 14.3 The t.test command: Hypothesis Tests for the Population M --------
+# For large enough n≥30 samples sizes (the same conditions for using the t.test command for confidence intervals) we can also do hypothesis testing using the t.test command for a hypothesis concerning the population mean. 
+# example, 
+#   here is the command for doing the Chemical City problem.
+t.test(chemical_children$Heights, mu = 3.85, alternative = "less")
+
+
+# The first parameter is the data set, the second is the null hypothesis value for the mean and the third option tells R that our alternative hypothesis is that the mean is less than 3.85. 
+# We will see examples of the other options for this. 
+# Notice that R will give you a sentence in the output of the t.test spelling out what the alternative hypothesis is. 
+# Also, notice the line which gives us the p.value.
+
+# The p-value may be used to determine how well the data align with results expected when the null hypothesis is true. 
+# It is a measurement of how compatible the data are with the null hypothesis. 
+# How likely is the effect observed in the sample data if the null hypothesis is true. 
+# The p value gives the probability of observing our data as extreme (or more extreme) assuming the null hypothesis is true.
+#   High p-values - The data are likely when the null is true
+#   Low p-values  - The data are unlikely under the null hypothesis.
+
+# A low p-value implies we can reject the null hypothesis. 
+# In this case we can see that the p.value is pretty small p≈0.01 so we have strong evidence against the null hypothesis in our data. 
+# Therefore, we might reject the hypothesis that the children of Chemical City have average or greater heights. 
+# Notice that we haven’t “proved” the alternative hypothesis conclusively, rather we have found it is unlikely that the null hypothesis holds in light of the evidence present in the sample.
+
+
+# The one sample t test is making use of the central limit theorem under the hood. 
+# Therefore it comes with the same limitations as the CLT.
+#   Only works for the hypothesis tests concerning the mean
+#   Need sample sizes of at least 30 to be safe
+#   If we apply this with smaller samples, we are assuming that the underlying population distribution is roughly mound shaped. Generally, we have no way to verify this.
+
+
+# The statements above might remind you of a conditional probability statement. 
+# In fact we can think of the p value as the conditional probability 
+#   P(D|H0),
+# that is the probability of observing the data given that the null hypothesis is true.
+
+# Recall that generally P(A|B)≠P(B|A). 
+# This error leads to a common misinterpretation of p values that they give the reverse conditional probability P(H0|D). 
+# It is not correct to say that p values give the probability the null hypothesis is true given the data. 
+# This is really a more useful probability to know in many ways. 
+# However, that is NOT what a p value gives us. 
+# To reverse conditional probabilities we need Bayes Rule. 
+
+
+#_---- 
+
+
+#* 14.4 Theory of Hypothesis Testing -------------------------------------
+# We have already seen the main ingredients of statistical hypothesis testing. 
+# However, here are the basic steps for single sample hypothesis tests for the population mean μ:
+#   1. Select the alternative hypothesis as that which the sampling experiment is intended to establish. 
+#     The alternative hypothesis will take one of the following forms:
+#       One-tailed, upper tailed (e.g Ha:μ > 2400)
+#       One tailed, lower tailed (e.g Ha:μ < 2400)
+#       Two-tailed (e.g Ha ≠ 2400)
+#   2. Select the null hypothesis H0 as the status quo. 
+#     It will be the opposite of the alternative hypothesis, although if the alternative is one-tailed we can fix the value at the closest value to the alternative hypothesis.
+#   3. Run the test in R using the t.test command.
+      t.test(data, mu=null value, alternative=two.sided, less, greater)
+#   4. Interpret the results using the p.value. 
+#     If p is small we may reject the null hypothesis, if it is large we say that we retain the null hypothesis, or fail to reject the null hypothesis. 
+#     More on the reasons for this jargon later, although I will say that using the correct jargon is very important to avoiding misinterpretations of hypothesis testing results.
+
+# For each of the following situations form the null and alternative hypothesis and give the options for the command in R.
+
+#*** Exercise 14.1 ----
+#   File - Chapter 14.R 
+
+
+#*** Exercise 14.2 ----
+#   File - Chapter 14.R 
+
+
+#*** Exercise 14.3 ----
+#   File - Chapter 14.R 
+
+
+#_---- 
+
+
+#* 14.5 Under the Hood (t tests) -----------------------------------------
+# Suppose we have designed a questionnaire system (SMARTY PANTS) to select people with higher than average IQs. 
+# The IQ test by definition gives the average person a score of 100. 
+# To evaluate this system we take a random sample of 50 people which SMARTY PANTS tells us have a higher than average IQ and have them complete an actual IQ test.
+
+# We find that the mean IQ score of our SMARTY PANTS selected people is m=103 with a sample standard deviation of s=15.
+
+# This sample mean (m) is certainly greater than 100, but we know this could have occurred by chance. 
+# Perhaps we were just lucky in our samples? 
+# To evaluate this we want to conduct a statistical hypothesis test with:
+#   H0: μ≤100 The mean of those selected people by SMARTY pants in less than or equal to 100
+#   Ha: μ>100 The mean of those selected people by SMARTY is greater than 100.
+
+# To evaluate this we assume that the null hypothesis is true. 
+# As we specified above the null hypothesis here owns all values less than or equal to 100 ( H0:μ≤100). 
+# The closest value in the null hypothesis range to our sample mean (m=103) is 100. 
+# So let’s assume that the population (true) mean of our SMARTY PANTS sample is 100.
+
+# Given this assumption we now want to calculate the probability that we would collect a sample of 50 people with a sample mean greater than or equal to what we actually observed m≥103?
+  
+# Well, we know from our study of sampling that the sampling distribution for the sample mean ¯x will be approximately normally distributed (for samples with at least 30) with a mean=μ and a standard deviation given by the standard error σ¯x=s/√N. 
+# Notice this statement is using the central limit theorem.
+
+# Recall, we can compute the Z score for normally distributed values to get an idea of how extreme they are. 
+#   Z = D−μ / σ = m−μ / (s/√N)
+se = 15 / sqrt(50)
+Zval = (103-100) / se
+
+# This tells us that the results we observed in our data are 1.4142136 standard deviations above the mean. 
+# Thus, the data we observed is not particularly extreme under the null hypothesis. 
+# We can find the probability we observe a Z score greater than or equal to 0.2 using pnorm:
+1 - pnorm(Zval)
+
+# This is in fact the p value for this statistical hypothesis test. 
+# The Z value is called the test statistic in this case.
+
+# To be more precise we should really use the student t distribution instead of the assuming a normal distribution for our samples. 
+# Recall, we use the student t distribution when we have used the data to estimate both the sample mean and the population standard deviation. 
+# This is almost always the case for real data sets.
+
+# Using the student t distribution in R is pretty easy we just switch pnorm for pt and specify the second parameter for a student t distribution (called the degree of freedom). 
+# The degrees of freedom for our t distribution is just the number of samples (100) minus 1.
+1 - pt(Zval, df = 99)
+
+# Notice, this is essentially the same thing as what we found with the normal approximation above. 
+# This is because the student t distribution becomes closer and closer to a normal distribution for large sample sizes.
+
+# In summary when we use a t.test command in R. This is what R computes for us:
+#   1. The test statistic (t): 
+#     t = (m − μ) / (s / √N)
+#       m - is the sample mean
+#       μ - is the mean under the null hypothesis
+#       s - is the sample standard deviation
+#       N - is the sample size.
+#   2. The p value using the alternative keyword:
+#       Greater:    1 - pt(t, df = N-1)
+#       Less:       pt(t, df = N-1)
+#       Two-tailed: 2*pt(abs(t), df = N-1) where abs is the absolute value of our t statistic.
+
+
+#_---- 
+
+
+#* 14.6 Errors in Hypothesis Testing -------------------------------------
+# In general two things can go wrong when we use statistical hypothesis testing (Fig. 14.3).
+#   1. Type I Error (False Positive): 
+#     occurs when the researcher rejects the null hypothesis in favor of the alternative hypothesis, while in fact the null hypothesis is true. 
+#     The probability of committing a type I error is denoted by α.
+#   2. Type II Error (False Negative): 
+#     occurs when the researcher retains the null hypothesis when in fact the null hypothesis is false. 
+#     The probability of commuting a type II error in denoted by β.
+
+# An analogy that some people find helpful in understanding the two types of error is to consider a defendant in a trial.
+
+# Court Analogy for Hypothesis Tests:
+#   H0:             The defendant is innocent
+#   Ha:             The defendant is guilty
+#   Type I Error:   Convict an innocent person
+#   Type II Error:  Let a guilty person go free
+
+
+#   Notice that we could always set one of these error rates to zero if we wanted. 
+#   example, 
+#     if I just convict everyone that comes to trial then my Type II error would be zero! 
+#     I cannot let a guilty person go free if I convict everyone. 
+#     On the other hand I can set my Type I error rate to zero by acquitting every case.
+
+#   This might seem silly but it illustrates the point that in any real scenario (with uncertainity involved) both the Type I and Type II error rates will be non zero. 
+
+
+#** 14.6.1 Statistical Significance (α) ----
+# We can control the α or false positive rate of our statistical test by setting a significance level before we test the hypothesis (really this should be set before we even collect the data). 
+# Typically we use α=0.05 or α=0.01 which mean that we have a 5% chance or 1% chance respectively of rejecting the null hypothesis incorrectly. 
+# When the statistical test is performed then we reject the null hypothesis only if the p-value produced is less than the significance level used.
+
+# To understand this lets perform some simulations. 
+# The below code runs a t test for the null hypothesis μ=1.0 for a random sample from a normal distribution which has a mean of 1.0.
+t.test(rnorm(100, mean = 1.0, sd = 2.0), mu = 1.0, alternative = "two.sided")$p.value
+
+
+# In this artificial case we know the null hypothesis is true, but due to sampling error we may occasionally get an p value which indicates that the null hypothesis should be rejected. 
+# Notice that the p.value which comes out changes every time we collect a sample and run our test.
+t.test(rnorm(100, mean = 1.0, sd = 2.0), mu = 1.0, alternative = "two.sided")$p.value
+
+
+# This is a key-point the p value depends on the data we collect, which the result of random sampling, therefore p values are random variables themselves!
+
+# By setting our significance level in advance to α=0.05 we say that we will reject the null hypothesis if and only if p<0.05. 
+# Lets run our simulation thousands of times to see how many times we commit a Type I error at this significance level.
+many.p.vals <- replicate(50000, t.test(rnorm(100, mean = 1.0, sd = 2.0), mu = 1.0, alternative = "two.sided")$p.value)
+sum(many.p.vals < 0.05) / 50000
+
+
+# We can see that we get about what we expect from this simulation. 
+# We incorrectly reject the null hypothesis about 5% of the time as expected. 
+# If we were to compute the p value of the test, and then decide to set our significance level we can end up with a much higher false positive rate. 
+# This is because very often we are searching for evidence to reject the null hypothesis.
+
+# If we conduct enough experiments even when their is no effect whatsoever eventually we will find convincing statistical evidence against the null hypothesis.
+
+# example, 
+#   if we conduct 100 experiments and only report the smallest p value we find then we can find an effect:
+many.pv <- replicate(100, t.test(rnorm(100, mean = 1.0, sd = 2.0), mu = 1.0, alternative = "two.sided")$p.value)
+min(many.pv)
+
+
+# By conducting hypothesis tests again and again until we get the result we want (rejecting the null hypothesis) we can end up with a much higher Type I error rate then α. 
+#   This fallacy (called p-hacking) is behind many of the absurd statistics you will see online. 
+#     Nutrional studies are particurily prone to this type of error. 
+#     This is why you may have heard that (insert common food) causes cancer and only a few weeks later hear that it cures cancer. 
+#     Figure 14.4 shows some results on this (https://fivethirtyeight.com/features/you-cant-trust-what-you-read-about-nutrition/).
+
+
+#** 14.6.2 Type II Error ----
+# The type II (False Negative) error rate for statistical hypothesis tests is much more difficult to control than the Type I error rate.
+# However, we can get an idea of this rate by doing some simulations where we know the alternative hypothesis is true.
+type2.er <- replicate(5000, t.test(rnorm(30, mean = 1.1, sd = 2.0), mu = 1.0, alternative = "greater")$p.value)
+sum(type2.er > 0.05) / 5000 # cases where the retain the null hypothesis at alpha=0.05, even though it is false
+
+# Notice how large this β rate is! In the general β will usually increase as we decrease α.
+
+
+# Generally as we attempt to lower the Type I error rate in hypothesis testing this will result in an increase in the Type II error rate. 
+
+
+type2.er <- replicate(5000, t.test(rnorm(30, mean = 1.1, sd = 2.0), mu = 1.0, alternative = "greater")$p.value)
+sum(type2.er > 0.01) / 5000 # cases where the retain the null hypothesis at alpha=0.01, even though it is false
+
+# That is if we risk more False Negatives if we make our criterion for rejecting the null hypothesis very stringent.
+# In the court analogy this is equivalent to saying by making the burden of proof very high we can control for the rate of false convictions, but making this criteria overly stringent will lead to an increase in the false acquittals.
+# The best way to decrease both α and β is to shed more light on the true nature of the population by increasing the sample size.
+# We can control the false positive rate by choosing α small, and decrease β by increasing the sample size.
+type2.er <- replicate(5000, t.test(rnorm(3000, mean = 1.1, sd = 2.0), mu = 1.0, alternative = "greater")$p.value) # larger sample size
+sum(type2.er > 0.05) / 5000 # cases where the retain the null hypothesis at alpha=0.01, even though it is false
+
+# We can see that by increasing the sample size to large samples we can get a more reasonable Type II (False Negative) error rate.
+
+
+# We may lower the chances of a type II error by collecting more data.
+# The type I error rate is controlled by us in choosing an appropriate α. 
+
+
+#** 14.6.3 Practical Significance versus Statistical Significance ----
+# It is also important to note that just because we find the differences are statistically significant it doesn’t mean that they are of any practical significance.
+# example,
+#   suppose we wanted to examine whether an online statistics tutor increased the mean grade point average of the students.
+# If the mean GPA before the tutoring was 3.50 we could do a upper tailed significance test to see if the GPA increased.
+#   H0: μ=3.5
+#   Ha: μ>3.5
+
+# Lets simulate this process but we will set the mean GPA after the tutoring to 3.51.
+gpa.after <- rnorm(10000, mean = 3.51, sd = 0.2)
+t.test(gpa.after, mu = 3.50, alternative = 'greater')
+
+# We can see that the difference in GPAs before and after the tutoring is highly, highly significant with a tiny p value.
+# However, if we payed 500 dollars for the tutoring a difference in 0.01 in the final GPA is of no practical significance.
+# This means we need to pay attention to the actual differences rather than just whether the result in statistically significant.
+# If we have large enough sample sizes we can find statistically significant differences between groups which have no practical significance.
+# This is like the twix bar from the left and right factories.
+
+
+# Practical and statistical significance are two different things entirely.
+# With large data sets we can find statistically significant differences which may amount to NO practical significance. 
+
+
+# As a matter of point if we have small sample sizes we can fail to find differences between groups as well.
+# example,
+#   if we had some nefarious wish to show that Turtles sizes on golf courses were no different than normal turtles, we might collect the data for only a few turtles (say 10) and then do a two tailed hypothesis test.
+# Here is a simulation of this scenario:
+fake.golf.course.turtles <- rnorm(10, mean = 20.0, sd = 8.0)
+t.test(fake.golf.course.turtles, mu = 19.0, alternative = "two.sided" )
+
+# We can see that the mean of the golf course turtles mass is actually different than the population mean (μ=19.0), however since our sample size is so small we will in general get large p values.
+# Therefore, we fail to reject the null hypothesis.
+# This is why we don’t say that we “accept the null hypothesis”, because failing to reject the null hypothesis might occur because there truly is no difference OR it may occur because we didn’t collect enough data.
+# We can never prove the null hypothesis as being true, only collect and measure (using a p value) the evidence against it.
+
+# The golf course owner might misinterpret the results of the statistical test and report that the results of the turtle survey concluded that no difference existed between the golf course turtles and normal turtles.
+
+
+# We are careful to say we retain the null hypothesis or if you are a fan of double negative we fail to reject the null hypothesis because when we retain the null hypothesis this could happen for two reasons:
+#   The null hypothesis is in fact true
+#   We have insufficient data to reject the null hypothesis
+
+# Generally, we have no way of knowing which of these two reasons are the culprit. 
+
+
+# Beware of the fallacy of accepting the null hypothesis.
+# Under this fallacy we could prove anything by just never collecting enough evidence to reject the null hypothesis. 
+
+
+#_---- 
+
+
+#* 14.7 Hypothesis Testing for Population Fraction -----------------------
+# We have seen how to perform hypothesis testing for the population mean μ.
+# We can also easily do hypothesis testing for the population proportion in R.
+# The same principles apply to this case, except now we are testing for evidence that our samples proportion p differs from a larger population.
+
+#** 14.7.1 Example: ----
+# Suppose we flip a coin 20 times and obtain 15 heads and 5 tails.
+# Can we conclude that the coin is biased?
+# Here are alternative hypothesis is that Ha:p ≠ 0.5 and therefore the null hypothesis is H0 = 0.5.
+# To run this test in R we use the prop.test command:
+
+prop.test(15, 20, p = 0.50, alternative = "two.sided")
+
+
+# You will notice that the syntax for this command is similar to the t.test hypothesis test.
+# Here the first entry is the number of successes in our sample, the second entry is the total number of trials in the sample, p sets the null hypothesis value (like mu in t.test), and the alternative option is the same as the t.test.
+
+
+# The conditions for performing a hypothesis test for a population proportion are the same as forming a confidence interval. We need….
+#   At least five sucesses in our data set
+#   At least five failures in our data set
+
+# I call this the rule of 5 and 5. 
+
+
+#*** Exercise 14.4 ----
+#   File - Chapter 14.R 
+
+
+#*** Exercise 14.5 ----
+#   File - Chapter 14.R
+
+
+#_---- 
+
+
+#* 14.8 Hypothesis Testing in Linear Regression --------------------------
+# We have seen some t tests being performed already in this class when we learned about linear regression.
+# Let’s consider the simple example using the alligator data set.
+# Recall this data set has two columns lnLength and lnWeight which gives the snout length of alligators against their weight.
+# When plotting these two variable together we get a nice linear relationship in the scatter plot.
+
+colnames(alligator)
+plot(alligator$lnLength, alligator$lnWeight, xlab = 'Snout Length', ylab = 'Weight', main = "Alligators")
+
+# Therefore, we are led to doing a linear regression analysis of the relationship between these variables.
+# From this analysis we get the familiar summary.
+
+lm.alligator = lm(lnWeight ~ lnLength, data = alligator)
+summary(lm.alligator)
+
+
+# However, now that we know a bit about hypothesis testing take a look at the last two columns in the Coefficients section.
+# One column has t values and the next column gives us p values (3.08e-10, 1.49e-12).
+# These p values are the result of performing a two tailed t test on the coefficients.
+# These tell us if we have sufficient evidence to reject the null hypothesis that the coefficient is equal to zero.
+
+# The other p value that you can see in this summary is on the very last line.
+# This p value is produced by a new type of hypothesis test (rather inventively called an F-test).
+# An F-test for a regression model allows us to compare the fit of our model against a model with all the slopes set to zero.
+# The null hypothesis of the F-test is that a model with no slope y=α can explain our data just as well as our linear model y=βx+α.
+
+# In this simple case notice the F-test is redundant with the t test for the slope. In fact they give the exact same p value.
+# In multiple regression models the F-test won’t be redundant with one of the slope t tests and gives us a way to assess the overall fit of our model.
+
+
+# We can also use the F-test to compare two nested regression models.
+# By nested we mean where one of the models can be generated from the other by setting some of the slopes to zero.
+# We won’t go into this in detail here.
+# However if interested you can read more here
+#   (https://bookdown.org/ndphillips/YaRrr/comparing-regression-models-with-anova.html).
+
+
+#_---- 
+
+
+#* 14.9 Power of a Statistical Test --------------------------------------
+# The final note for this section is to define the power of a statistical hypothesis test.
+# The power of a test range from 0 to 1, with 1 being the most powerful test.
+# The statistical power of a hypothesis test is given by 
+#   Power = 1 − β
+# where β is the Type II (False Negative) error rate.
+# The power of a test a measurement of the ability of the test to distinguish truth from illusions.
+# We saw that if we collect only a small amount of data, then we have very little evidence from which to draw our conclusions.
+# Therefore, our statistical test has little power in this case.
+# In addition, since collecting more data will in general decrease our Type II error rate we can increase the power of any test by collecting more data.
+
+# In Statistics much effort is devoted to finding the most powerful test available for a given scenario.
+# Generally, to increase the power of a test without collecting more data we will need to add some assumptions about the data.
+# If these are justified then all is well and we will get reduced error rates.
+
+
+#_---- 
+
+
+#* 14.10 Homework --------------------------------------------------------
+#   File - Chapter 14.R
+
+
+# ____----
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6676,7 +7138,7 @@ summary(mlm.house.neigh.interact)
 # ____----
 
 
-load(paste(path_dataset, "AmesHousing_Regression", ".Rdata", sep = ""))
+load(paste(path_dataset, "alligator", ".Rdata", sep = ""))
 
 load(paste(path_dataset, "flightNYC", ".rda", sep = ""))
 
