@@ -12,7 +12,7 @@
 # shot_logs_2014    toad_girth            wine_tasting        NBA_Draft_Data
 # bacon_data        cricket_chirps        alligator           kidiq
 # census.us.pop     food_college          videoGameSales      NBA_Salaries_2017
-# 
+# soccer_coach      
 # AmesHousing_Regression                  bad_drivers_cluster
 # Gambling_HW_Normality                   seaice_dec_northern
 # HR_Employee_Attrition                   nba_pgs_all_players_2016
@@ -7116,31 +7116,395 @@ summary(lm.alligator)
 # ____----
 
 
+# Chapter 15 Hypothesis Testing: Two Sample Tests -------------------------
+#* 15.1 Two Sample t test ------------------------------------------------
+# We can also use the t test command to conduct a hypothesis test on data where we have samples from two populations.
+# To introduce this lets consider an example from sports analytics.
+# In particular, let us consider the NBA draft and the value of a lottery pick in the draft.
+# Teams which do make the playoffs are entered into a lottery to determine the order of the top picks in the draft for the following year.
+# These top 14 picks are called lottery picks.
+
+# Using historical data we might want to investigate the value of a lottery pick against those players who were selected outside the lottery.
+
+colnames(NBA_Draft_Data)
+NBA_Draft_Data$Lottery.Pick = ifelse(NBA_Draft_Data$Pick.Number <= 14, "Lottery", "Not Lottery") # create a lottery pick column
 
 
+# We can now make a boxplot comparing the career scoring averages of the lottery picks between these two pick levels.
+boxplot(NBA_Draft_Data$PTS~NBA_Draft_Data$Lottery.Pick,
+        ylab = 'Career PPG Average', main = 'Career PPG for Lottery Picks versus Non Lottery Picks', col='skyblue1')
 
 
+# From this boxplot we notice that the lottery picks tend to have a higher point per game (PPG) average.
+# However, we certainly see many exceptions to this rule.
+# We can also compute the averages of the PTS column for these two groups:
+
+NBA_Draft_Data %>%
+  group_by(Lottery.Pick) %>%
+  summarise(ppg = mean(PTS), NumberPlayers = n())
 
 
+# This table once again demonstrates that the lottery picks tend to average more points.
+# However, we might like to test this trend to see if have sufficient evidence to conclude this trend is real (this could also just be a function of sampling error).
 
 
+#** 15.1.1 Regression analysis ----
+# Our first technique for looking for a difference between our two categories is linear regression with a categorical explanatory variable.
+# We fit a regression model of the form:
+#   PTS = β*δ[not lottery] + α
+#     Where
+#       δ[not lottery] is equal to one if the draft pick fell outside the lottery and zero otherwise.
+
+lm.draft = lm(PTS ~ Lottery.Pick, data = NBA_Draft_Data)
+summary(lm.draft)
 
 
+# To see if this relationship is real we can form a confidence interval for the coefficients.
+confint(lm.draft)
 
 
+# From this we can see that Lottery picks to tend to average more point per game over their careers.
+# The magnitude of this effect is somewhere between 3.5 and 4.7 points more for lottery picks.
 
 
+#** 15.1.2 Two Sample t test approach ----
+# For this we can use the two-sample t-test to compare the means of these two distinct populations.
+
+# Here the alternative hypothesis is that the lottery players score more points 
+#   HA: μL > μNL
+# thus the null hypothesis is 
+#   H0: μL ≤ μNL.
+# We can now perform the test in R using the same t.test command as before.
+
+t.test(NBA_Draft_Data$PTS ~ NBA_Draft_Data$Lottery.Pick, alternative = 'g')
 
 
+# Notice that I used the magic tilde ~ to split the PTS column into the lottery/non-lottery pick subdivisions.
+# I could also do this manually and get the same answer:
 
+lottery.ppg = subset(NBA_Draft_Data$PTS, NBA_Draft_Data$Lottery.Pick == 'Lottery')
+not.lottery.ppg = subset(NBA_Draft_Data$PTS, NBA_Draft_Data$Lottery.Pick == 'Not Lottery')
+t.test(lottery.ppg, not.lottery.ppg, alternative = 'g')
+
+
+# The very small p-value here indicates that the population mean of the lottery picks is truly greater than the population mean of the non-lottery picks.
+
+# The 95% confidence interval also tells us that this difference is rather large (at least 3.85 points).
+
+
+# Conditions for using a two-sample t test:
+# These are roughly the same as the conditions for using a one sample t test, although we now need to assume that BOTH samples satisfy the conditions.
+#   1. Must be looking for a difference in the population means (averages)
+#   2. 30 or greater samples in both groups (CLT)
+#   3. If you have less than 30 in one sample, you can use the t test must you must then assume that the population is roughly mound shaped. 
+
+
+#*** Exercise 15.1 ----
+#   File - Chapter 15.R
+
+
+#*** Exercise 15.2 ----
+#   File - Chapter 15.R
+
+
+# At this point you would probably like to know why we would ever want to do a two sample t test instead of a linear regression?
+# My answer is that a two sample t test is more robust against a difference in variance between the two groups. 
+# Recall, that one of the assumptions of simple linear regression is that the variance of the residuals does not depend on the explanatory variable(s). 
+# By default R does a type of t test which does not assume equal variance between the two groups. 
+# This is the one advantage of using the t test command.
+# Also, you should know what a two sample t test is. Even if you are not going to be doing many you will still see if being done by others all the time. 
+
+
+# The two sample t test is specialized to deal with comparing the mean values between only two categories. 
+# It doesn’t work for categorical variables with more than two levels. 
+
+
+#** 15.1.2.1 Paired t test ----
+# Lets say we are trying to estimate the effect of a new training regiment on the 40 yard dash times for soccer players. 
+# Before implementing the training regime we measure the 40 yard dash times of the 30 players. 
+# First lets read this data set into R.
+
+head(soccer_coach)
+
+
+# First, we can compare the mean times before and after the training:
+mean(soccer_coach$before.time)
+mean(soccer_coach$after.time)
+
+
+# Also we could make a side by side boxplot for the soccer players times before and after the training
+boxplot(soccer_coach$before.time, soccer_coach$after.time,
+        main='40 yard dash times of Soccer Players before/after Training', ylab='Time (sec)', names=c("Before", "After"), col='lightblue')
+
+
+# We could do a simple t test to examine whether mean of the players times after the training regime is implemented decrease (on average). 
+# Here we have the alternative hypothesis that Ha: μb − μa > 0 and thus the null hypothesis that H0: μb − μa ≤ 0. 
+# Using the two sample t test format in R we have:
+
+t.test(soccer_coach$before.time, soccer_coach$after.time, alternative='greater')
+
+
+# Here we cannot reject the null hypothesis that the training had no effect on the players sprinting performance. 
+# However, we haven’t used all of the information available to us in this scenario. 
+# The t test we have just run doesn’t know that we recorded the before and after for the same players more than once. 
+# As far as R knows the before and after times could be entirely different players as if we are comparing the results between one team which received the training and one who didn’t. 
+# Therefore, R has to be pretty conservative in its predictions. 
+# The differences between the two groups could be due to many reasons other than the training regime implemented. 
+# Maybe the second set of players just started off being a little bit faster, etc.
+
+# The data we collected is actually more powerful because we know the performance of the same players before and after the test. 
+# This greatly reduces the number of variables which need to be accounted for in our statistical test. 
+# Luckily, we can easily let R know that our data points are paired.
+
+t.test(soccer_coach$before.time, soccer_coach$after.time, alternative='greater', paired=TRUE)
+
+
+# Setting the paired keyword to true lets R know that the two columns should be paired together during the test. 
+# We can see that running the a paired t test gives us a much smaller p value. 
+# Moreover, we can now safely conclude that the new training regiment is effective in at least modestly reducing the 40 yard dash times of the soccer players.
+
+# This is our first example of the huge subject of experimental design which is the study of methods which can be used to create data sets which have more power to distinguish differences between groups. 
+# Where possible it is better to collect data for the same subjects under two conditions as this will allow for more powerful statistical analysis of the data (i.e a paired t test instead of a normal t test).
+
+# Whenever the assumptions are met for a paired t test, you will be expected to perform a paired t test in this class.
+
+
+#*** Exercise 15.3 ----
+#   File - Chapter 15.R
+
+
+#_---- 
+
+
+#* 15.2 Two Sample Proportion Tests --------------------------------------
+# We can also use statistical hypothesis testing to compare the proportion between two samples. 
+# example, 
+#   we might conduct a survey of 100 smokers and 50 non-smokers to see whether they buy organic foods. 
+#   If we find that 30/100 smokers buy organic and only 11/50 non-smokers buy organic then can we conclude that more smokers buy organic foods that smokers? 
+#   Ha: ps > pn and H0: ps ≤ pn.
+
+prop.test(c(30,11), c(100,50), alternative='greater')
+
+
+# In this case we don’t have sufficient evidence to conclude that a larger fraction of smokers buy organic foods. 
+# It is common when analyzing survey data to want to compare proportions between populations.
+
+# The key assumptions when performing a two-sample proportion test are that we have at least 5 successes and 5 failures in BOTH samples.
+
+
+#*** Exercise 15.4 ----
+#   File - Chapter 15.R
+
+
+#_---- 
+
+
+#* 15.3 Extra Example: Birth Weights and Smoking -------------------------
+# For this example we are going to use a data from a study on the risk factors associated with giving birth to a low-weight baby (sometimes defined as less than 2,500 grams). 
+# This data set is another one which is build into R. 
+# To load this data for analysis type:
+
+library(MASS)
+data(birthwt)
+
+
+# You can view all a description of the data by typing ?birthwt once it is loaded. 
+# To begin we could look at the raw birth weight of mothers who were smokers versus non-smokers. 
+# We can do some EDA on this data using a boxplot:
+
+boxplot(birthwt$bwt~birthwt$smoke, xlab='Smoke', ylab='Birth Weight')
+
+
+# From the boxplot we can see that the median birth weight of babies whose mothers smoked was smaller. 
+# We can test the data for a difference in the means using a t.test command.
+
+t.test(birthwt$bwt~birthwt$smoke, alternative='g')
+
+
+# Notice we can use the ~ shorthand to split the data into those two groups faster than filtering. 
+# Here we get a small p value meaning we have sufficient evidence to reject the null hypothesis that the mean weight of babies of women who smoked is greater than or equal to those of non-smokers.
+
+# Within this data set we also have a column low which classifies whether the babies birth weight is considered low using the medical criterion (birth weight less than 2,500 grams):
+
+table(birthwt$smoke, birthwt$low)
+
+
+# We can see that smoking gives a higher fraction of low-weight births. 
+# However, this could just be due to sampling error so let’s run a proportion test to find out.
+
+prop.test(table(birthwt$smoke, birthwt$low), alternative='greater') # does a proportion test between rows
+
+
+# Once again we find we have sufficient evidence to reject the null hypothesis that smoking does not increase the risk of a low birth weight.
+
+
+#_---- 
+
+
+#* 15.4 Homework ---------------------------------------------------------
+#   File - Chapter 15.R
 
 
 # ____----
 
 
-load(paste(path_dataset, "alligator", ".Rdata", sep = ""))
+# Chapter 16 Confidence Intervals and Hypothesis Testing ------------------
+#* 16.1 Relation to Confidence Intervals ---------------------------------
+# I have been hinting throughout our discussion of hypothesis testing that in many cases confidence intervals are a better approach. 
+# In fact for the single sample tests we have looked at so far we have little need for complications of hypothesis testing. 
+# R has been hinting that confidence intervals can also be used in the output from the t.test and prop.test commands.
 
-load(paste(path_dataset, "flightNYC", ".rda", sep = ""))
+
+#** 16.1.1 Two sided tests ----
+# Lets start with two sided hypothesis tests. 
+# Recall we use two sided hypothesis tests when our alternative hypothesis is of the form Ha: μ ≠ a or Ha: p ≠ b for the case of testing population proportions.
+
+# example,
+#   lets look at the biased coin example from the last section again:
+
+prop.test(15,20, p=0.50, alternative="two.sided")
+
+
+# You will notice that R gives us a 95 percent confidence interval for p given the data. 
+# This is the very same confidence interval we would get if we used the prop.test command to just get the confidence interval for the population proportion p:
+
+prop.test(15,20)
+
+
+# Notice that 0.5 is just outside the 95% confidence interval for p. 
+# This means we would reject the null hypothesis at a significance level of α=0.05 for any null hypothesis outside this 95% confidence interval (0.505.0.904). 
+# Therefore, conducting a two-sided hypothesis test with significance level α just amounts to forming a confidence interval at 1.0-α level and seeing if the confidence interval contains the null value.
+
+# If the 95% confidence interval formed based on our sample does not include the null hypothesis value H0:μ=a or H0:p=b we would reject the null hypothesis at a α=0.05 significance level.
+
+# This is important for a few reasons:
+#   1. Generality:
+#     We saw how to form the confidence interval for any point estimator we want (median, variance, IQR, etc) using bootstrapping. 
+#     You will notice we only learned how to do hypothesis tests for the population mean μ and proportion p. 
+#     Therefore, interpreting confidence intervals as hypothesis tests allows us to perform hypothesis tests on any point estimator ^θ we want using bootstrapping.
+
+#   2. Ease of Interpretations:
+#     By reporting the confidence interval rather than just the results of the hypothesis test we give the reader our our results much more information. 
+#     This enables us to spot and correct many of the common mistakes we have discussed for hypothesis testing.
+
+
+#*** Example 16.1 ----
+# Lets say that we flip a coin 20000 times and find 9850 heads. 
+# If we perform a hypothesis test with Ha:p≠0.5 and H0:p=0.5, we find: 
+prop.test(9850, 20000, p=0.5, alternative = 'two.sided')
+
+
+# We find sufficient evidence to reject the null hypothesis here at a α=0.05 significance level. 
+# This could be reported as finding a biased coin. 
+# However, if we were to report the confidence interval as (0.485,0.49945) we can see that the only reason we find a “significant” difference here is because the sample size is very large. 
+# The reader can then make up their own mind as to what constitutes a significant difference.
+
+
+#*** Example 16.2 ----
+# We say that hypothesis testing can also be manipulated in the opposite direction by nefarious statisticians. 
+# If we want to set-up a hypothesis test to not find a difference between groups we could take very small sample sizes, and then say we failed to reject the null hypothesis. 
+# example, 
+#   suppose we had a biased coin (only gives heads 40% of the time) we want to pass off as fair. 
+#   We might only flip it ten times. 
+#   Say this yields 4 heads. 
+#   If we run a hypothesis test on this data with the Ha: p ≠ 0.5 and H0: p = 0.5 we find: 
+
+prop.test(4,10, p=0.5, alternative='two.sided')
+
+
+# We could then (falsely) claim that since we didn’t reject the null hypothesis this shows our coin isn’t biased. 
+# However, we say earlier that we might fail to reject the null hypothesis for two reasons. 
+# First because the null is actually true, but also because we haven’t collected enough data yet. 
+# Looking at the confidence interval here can give us an idea of which case we are in. 
+# The 95% confidence interval here is 0.1369306, 0.7263303. 
+# This huge range on the confidence interval tells us we are in the not enough data regime.
+
+# A wide confidence interval indicates that we may have retained the null because we have insufficient evidence to perform any inference at all.
+
+
+#*** Exercise 16.1 ----
+#   File - Chapter 16.R
+
+
+#** 16.1.2 One-sided confidence intervals ----
+# When we learned about confidence intervals we saw that a typical 95% confidence interval (s1,s2) is chosen so that
+#   s1 is the 2.5% quantile of the sampling distribution
+#   s2 is the 97.5% quantile of the sampling distribution
+
+# Thus we decide to take off the 5% from each side evenly. 
+# However, their is no particular reason that we have to do it this way. 
+# example, 
+#   we could leave off 5% by considering the intervals (−∞,h1) or (h2,∞). 
+#   Where h1 is the 95% quantile of the sampling distribution and h2 is the 5 quantile of the sampling distribution. 
+#     This are called one-sided confidence intervals
+#       and are the confidence interval equivalent for hypothesis testing when are alternatives is sided (less, greater).
+
+# When we test a “less” alternative hypothesis like Ha:μ<0.1 or for proportions Ha:p<0.5, then the confidence interval to use is the left one sided interval (−∞,h1). 
+# If we use the t.test or prop.test commands in R, then R will automatically choose this for us. 
+# The confidence interval equivalent to a hypothesis test is to form your confidence interval (usually 95% or 99%) and see if it contains the null value. 
+# If it does then retain the null hypothesis at level (100-95, or 100-99).
+
+# The “greater” test is equilvalent to forming a right one sided interval (h2,∞). 
+# With the same interpretations as above.
+
+
+#*** Example 16.3 ----
+# Lets say we want to show that a coin is biased in that it comes up heads less than 45% of the time. 
+# If we flip the coin 15 times and it comes up heads 5 times, do we have sufficient evidence to reach this conclusion?
+
+# Lets use the prop.test command to form a left sided confidence interval:
+
+prop.test(5, 15, alternative='less')
+
+
+# This confidence interval contains the null hypothesis so we cannot conclude that the true p is less than 45% given this data.
+
+
+#*** Example 16.4 ----
+#  For the toad girth data set we may want to know whether we have sufficient evidence that the mean toad girths of Kerr Country are greater than 94mm?
+
+# Lets use a t.test command and interpret the confidence interval.
+
+t.test(toad_girth$Girths, alternative = 'greater', conf.level = 0.95)
+
+
+# At the 95% level we see the confidence interval does not contain the null value (94) so we would reject the null hypothesis. 
+# However, we can see that if we raise the significance level to 1%, we get:
+
+t.test(toad_girth$Girths, alternative = 'greater', conf.level = 0.99)
+
+# Now the null hypothesis value is contained in the confidence interval.
+
+
+#*** Exercise 16.1 ----
+#   File - Chapter 16.R
+
+
+# ____----
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#_---- 
+
+# ____----
+
+
+load(paste(path_dataset, "Young_People_Survey", ".Rdata", sep = ""))
+
+load(paste(path_dataset, "soccer_coach", ".rda", sep = ""))
 
 source(paste(path_add_func, "dropLowFactors", ".R", sep = ""))
 
