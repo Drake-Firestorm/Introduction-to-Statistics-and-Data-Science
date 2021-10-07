@@ -7476,36 +7476,427 @@ t.test(toad_girth$Girths, alternative = 'greater', conf.level = 0.99)
 # Now the null hypothesis value is contained in the confidence interval.
 
 
-#*** Exercise 16.1 ----
+#*** Exercise 16.2 ----
 #   File - Chapter 16.R
 
 
 # ____----
 
 
+# Chapter 17 Introduction to the Chi Square Test --------------------------
+#* 17.1 Contingency Tables -----------------------------------------------
+# In many situations we may want to look for a relationship between two categorical variables. 
+# To get an idea of this we will want to make what is called a contingency table. 
+# example,
+#   lets look at the Young_People_Survey data set from my package.
+
+colnames(Young_People_Survey)
 
 
+# This data set contains answers of survey questions for 1010 Slovakian teenagers. 
+# The majority of the questions on the survey asked the participants to rate their feelings on a subject from 1 to 5. 
+# For the hobbies and interests section 1 means they are not interested in that and 5 means they are very interested.
+
+# For example, lets see how the participants rated their interest in mathematics:
+  
+table(Young_People_Survey$Mathematics)
 
 
+# We can make a plot of this to get a graphical visualization of the data:
+
+barplot(prop.table(table(Young_People_Survey$Mathematics)),
+        main='Young People Interest in Mathematics', ylab='Proportion', xlab='Interest in Mathematics', col="skyblue1")
 
 
+# This is rather depressing data for a math professor.
+# However, I might want to know if their is a relationship between a persons interest level in math and their interest in religion.
+# Lets make a table of these two variables (contingency table)
+
+table(Young_People_Survey$Mathematics, Young_People_Survey$Religion)
 
 
+# You can see that the most popular choice is that people are interested in neither math nor religion (rated both at a 1).
+
+mosaicplot(xtabs(~Mathematics+Religion, data=Young_People_Survey), main='Mosaic Plot of Math versus Religion', col='skyblue')
 
 
+# How can we test whether the answers to these two questions are linked?
+#   Let’s assume (as our Null hypothesis) that they are completely independent of one another. 
+#   So that knowledge of someones interest in religion would tell you nothing about their interest in mathematics.
+#   If this was the case how many people would be expect to have ended up in the (1,1) category? 
+#   Well, we had 403 total people who rated math as a 1 and 393 total people who rated religion as a 1. 
+#   The total people in the survey was 1004. Thus, if knowledge of one of these told us nothing about the other we who guess that 403*393/1004= 157.748008 people would have been in the (1,1) entry. 
+#   In general our formula would be: 
+#     Eij = ni × nj / N
+#       where 
+#         ni is the row sum and 
+#         nj is the column sum and 
+#         N is the total data points. 
+#   For the (1,1) entry we can see that our survey data (180) is larger than our expected number if we had no relationship. 
+#   Filling out the rest of the table gives the following expected numbers if we had no relationship between the answers.
+
+ct <- table(Young_People_Survey$Mathematics, Young_People_Survey$Religion)
+rs <- rowSums(ct)
+cs <- colSums(ct)
+total <- marginSums(ct)
+x <- matrix(nrow = 5, ncol = 5)
+
+for(i in seq(1, 5)){
+  for(j in seq(1, 5)){
+    x[i, j] <- rs[i] * cs[j] / total
+  }
+}
+ftable(x)
+
+# alternate
+chisq.test(ct)$expected
+ct - chisq.test(ct)$expected
 
 
+# Taking the difference between the expected (with no relationship) and the observed gives us an idea of where the departures from independence may occur:
+# Observed-Expected=
+
+ct - x
+
+
+# This is all fine and great but how can we tell if this is a real departure of just a random effect? 
+# A random sample will naturally lead to slightly different answers that the theoretical expected amounts in each category.
+
+# The answer is to use the χ2 (chi-squared) test.
 
 
 #_---- 
 
+
+#* 17.2 Chi Square Test --------------------------------------------------
+# The idea of the χ2 test is to compute the a sum of all the differences between the observations and the expected data if we have no relationship between the variables 
+#   χ2 = [M∑i=1](Oi − Ei)^2 / Ei.
+#     Where
+#       Oi is the observed frequency in each category and 
+#       Ei is the expected amount.
+
+# This χ2 value will be large if the observed and expected values show a large departure.
+
+chisq.test(table(Young_People_Survey$Mathematics, Young_People_Survey$Religion))
+
+
+# The small p-value indicates that we should reject the null hypothesis that the distribution of values in the table is not entirely random.
+
+# Now lets do a sanity check by considering two columns which we don’t think are related at all. 
+# example, 
+#   lets look to see if peoples feelings about rock music tell us anything about their interest level in mathematics. 
+#   I have no real reason to think those two things might be related.
+
+table(Young_People_Survey$Mathematics, Young_People_Survey$Rock)
+
+
+# Lets run a χ2 test to see if these two questions are related to one another.
+
+chisq.test(table(Young_People_Survey$Mathematics, Young_People_Survey$Rock))
+
+
+# As we might expect we find that the p-value here is quite high (above any reasonable cut-off for statistical significance). 
+# Therefore we would retain the null hypothesis that these two columns are unrelated.
+
+# A key thing to note is that the χ2 test does NOT tell us what entries in the table are responsible for the departure from independence. 
+# It could be that each of the entries are a little bit off leading to a large χ2 statistic overall, or it could be the case that one entry is very different than the null. 
+# The test itself gives us no indication which of these is the case.
+
+
+#** 17.2.1 Conditions for Using the χ2 test ----
+# The χ2 test will not perform well (accurately) if the expected counts in any entry in the table is small. 
+# A rule-of-thumb is not to trust the conclusions for a χ2 test performed on data where the expected counts in any entry in the table are less than 5.
+
+# Here is how you can check the expected counts for a chisquare test in R.
+
+my.test <- chisq.test(table(Young_People_Survey$Mathematics, Young_People_Survey$Religion))
+my.test$expected
+
+
+# https://andrewgelman.com/2011/11/07/chi-square-fail-when-many-cells-have-small-expected-values/
+
+
+#** 17.2.2 Multiple Hypothesis Testing Again ----
+# The chi square test on a large data set like the Young People survey data is a good opportunity to recall what we have learned about multiple hypothesis testing. 
+# We have 150 columns of data in this data set. 
+# Therefore, I have the oppurtunity to run:
+
+choose(150,2)
+
+
+# different χ2 tests to look for relationships between variables. 
+# If I run all of these tests using a significance threshold of α=0.01 they I can expect to make:
+
+choose(150,2)*0.01
+
+
+# Type I errors (that is False Positives). 
+# That is quite a few errors! If we estimate that 20 of these columns are actually related and our tests find everyone of these then we would have made over 5 incorrect predictions for every 1 correct one. 
+# That is not a good ratio!
+
+# The solution is to only run these statistical tests when we actually have some reason to suspect that the two columns may be related.
+
+
+#** 17.2.3 Using a different Null Hypothesis ----
+# By default the χ2 test will assume we want to test our data against the uniform null hypothesis. 
+# Where attributes are assigned uniformly within each row/column, however we can change this is we have some reason to.
+
+# example, 
+#   lets suppose we are tasked with investigating the hiring practices of a business for discrimination based on age. 
+#   Lets say the company has 100 employees and only 8 of them are older than 65. 
+#   According to the census bureau 15.2% of the US population is over 65. 
+#   Can we conclude that the percentage of older employees at the company differs from the population as a whole?
+  
+# The null hypothesis here is that we have 84.8% Young and 15.2% old. 
+# We can tell R to use this null hypothesis in the χ2 test .
+
+age.table = as.table(c(Young=92, Old=8))
+chisq.test(age.table, p=c(0.848, 0.152))
+
+
+# So at the α=0.05 level we have sufficient evidence to reject the null. 
+# However, we can think of many reasons this might occur….
+
+
+#*** Exercise 17.1 ----
+#   File - Chapter 17.R
+
+
+#_---- 
+
+
+#* 17.3 Homework ---------------------------------------------------------
+#   File - Chapter 17.R
+
+
 # ____----
 
 
-load(paste(path_dataset, "Young_People_Survey", ".Rdata", sep = ""))
 
-load(paste(path_dataset, "soccer_coach", ".rda", sep = ""))
+# Chapter 18 Logistic Regression ------------------------------------------
+#* 18.1 What is logistic regression used for? ----------------------------
+# Logistic regression is useful when we have a response variable which is categorical with only two categories.
+# This might seem like it wouldn’t be especially useful, however with a little thought we can see that this is actually a very useful thing to know how to do. 
+# Here are some examples where we might use logistic regression.
+#   Predict whether a customer will visit your website again using browsing data
+#   Predict whether a voter will vote for the democratic candidate in an upcoming election using demographic and polling data
+#   Predict whether a patient given a surgery will survive for 5+ years after the surgery using health data
+#   Given the history of a stock, market trends predict if the closing price tomorrow will be higher or lower than today?
+  
+# With many other possible examples. 
+# We can often phrase important questions as yes/no or (0-1) answers where we want to use some data to better predict the outcome. 
+# This is a simple case of what is called a classification problem in the machine learning/data science community. # Given some information we want to use a computer to decide make a prediction which can be sorted into some finite number of outcomes.
 
-source(paste(path_add_func, "dropLowFactors", ".R", sep = ""))
 
-source(paste(path_shiny, "runHannayApp", ".R", sep = ""))
+#_---- 
+
+
+#* 18.2 GLM: Generalized Linear Models -----------------------------------
+# Our linear regression techniques thus far have focused on cases where the response (Y) variable is continuous in nature. 
+# Recall, they take the form: 
+#   Yi = α + [N∑j=1]βjXij
+#     Where 
+#       alpha is the intercept and 
+#       {β1,β2,...βN} are the slope parameters for the explanatory variables ({X1,X2,...XN}). 
+# However, our outputs Yi should give the probability that Yi takes the value 1 given the Xj values. 
+# The right hand side of our model above will produce values in R=(−∞,∞) while the left hand side should live in [0,1].
+
+# Therefore to use a model like this we need to transform our outputs from [0,1] to the whole real line R.
+
+# The logit function is useful for this purpose as it maps logit: [0,1] → R. 
+# The logit function takes the form: 
+#   logit(x) = ln(x / (1−x))
+
+x <- seq(0, 1, 0.01)
+logit_x <- log(x / (1-x))
+
+plot(x, logit_x, ylab = "logit(x)", main = "Logit Function", type = "l")
+
+
+# Thus, we can use our multiple regression techniques if treat our outputs as Yi=logit(pi). 
+# This is the basic idea of logistic regression: 
+#   Yi = logit(pi) = α + [N∑j=1]βjXij
+
+# Usually, we want to know pi and not logit(pi) and we can find this using the inverse logit logit−1. 
+#   pi = logit−1(α + [N∑j=1]βjXij)
+#   logit^−1(γ) = 1 / (1 + e^−γ)
+
+# A logistic regression is one example in a family of techniques called generalized linear models (GLM). 
+# GLMs involve a linear predictor function α + [∑Nj=1]βjXij and a link function g() which maps the linear predictor to the response variable.
+#   yi = g * (α + [N∑j=1]βjXij)
+
+
+#_---- 
+
+
+#* 18.3 A Starting Example -----------------------------------------------
+# Let’s consider the shot logs data set again. 
+# We will use the shot distance column SHOT_DIST and the FGM columns for a logistic regression. 
+# The FGM column is 1 if the shot was made and 0 otherwise (perfect candidate for the response variable in a logistic regression). 
+# We expect that the further the shot is from the basket (SHOT_DIST) the less likely it will be that the shot is made (FGM=1).
+
+# To build this model in R we will use the glm() command and specify the link function we are using a the logit function.
+
+logistic.nba <- glm(FGM~SHOT_DIST, data=shot_logs_2014, family=binomial(link="logit"))
+logistic.nba$coefficients
+
+
+# logit(p) = 0.392 − 0.04×SD ⟹ p = logit^−1(0.392 − 0.04×SD)
+
+# So we can find the probability of a shot going in 12 feet from the basket as:
+
+boot::inv.logit(0.392-0.04*12)
+
+
+# Here is a plot of the probability of a shot going in as a function of the distance from the basket using our best fit coefficients.
+
+x <- seq(0, 400, 40.0)
+p <- boot::inv.logit(0.392-0.04*x)
+slplot = dplyr::sample_n(shot_logs_2014, 1000)
+plot(slplot$SHOT_DIST, slplot$FGM+rnorm(dim(slplot)[1], sd=0.01), cex=0.15,
+     xlab='Shot Distance (Feet)', ylab='Probability of Shot Being Made')
+lines(x,p, type = 'l', col='red')
+
+
+#** 18.3.1 Confidence Intervals for the Parameters ----
+# A major point of this book is that you should never be satisfied with a single number summary in statistics.
+# Rather than just considering a single best fit for our coefficients we should really form some confidence intervals for their values.
+
+# As we saw for simple regression we can look at the confidence intervals for our intercepts and slopes using the confint command.
+
+library(MASS)
+ci1 <- confint(logistic.nba)
+
+
+# Note, these values are still in the logit transformed scale.
+
+
+#_---- 
+
+
+#* 18.4 Equivalence of Logistic Regression and Proportion Tests ----------
+# Suppose we want to use the categorical variable of the individual player in our analysis. 
+# In the interest of keeping our tables and graphs visible we will limit our players to just those who took more than 820 shots in the data set.
+
+library(dplyr)
+lotsShots <- shot_logs_2014 %>%
+  group_by(player_name) %>%
+  summarise(num.attempts=n()) %>%
+  filter(num.attempts>=820) %>%
+  arrange(player_name)
+knitr::kable(lotsShots, col.names = c('Name', 'Number of Shots'))
+
+
+# Now we can get a reduced data set with just these players.
+sl2 <- shot_logs_2014 %>% filter(player_name %in% lotsShots$player_name) %>% arrange(player_name)
+
+
+# Lets form a logistic regression using just a categorical variable as the explanatory variable. 
+#   logit(p) = βPlayer
+
+
+logistic.nba.player <- glm(FGM~player_name+0, data=sl2, family=binomial(link="logit"))
+summary(logistic.nba.player)
+
+
+# If we take the inverse logit of the coefficients we get the field goal percentage of the players in our data set.
+
+boot::inv.logit(logistic.nba.player$coefficients)
+
+
+# Now suppose we want to see if the players in our data set truly differ in their field goal percentages or whether the differences we observe could just be caused by random effects. 
+# To do this we want to compare a model without the players information included with one that includes this information. 
+# Let’s create a null model to compare against our player model.
+
+null.player.model <- glm(FGM~1, data=sl2, family=binomial(link="logit"))
+
+
+# This null model contains no explanatory variables and takes the form: 
+#   logit(pi) = α
+
+# Thus, the shooting percentage is not allowed to vary between the players. 
+# We find based on this data an overall field goal percentage of:
+
+boot::inv.logit(null.player.model$coefficients)
+
+
+# Now we may compare logistic regression models using the anova command in R.
+
+anova(null.player.model, logistic.nba.player, test='LRT')
+
+
+# The second line contains a p value of 2.33e-5 telling us to reject the null hypothesis that the two models are equivalent. 
+# So we found that knowledge of the player does matter in calculating the probability of a shot being made.
+
+# Notice we could have performed this analysis as a proportion test using the null that all players shooting percentages are the same p1=p2=...p15
+
+prop.test(table(sl2$player_name, sl2$FGM))
+
+
+# Notice the p-value obtained matches the logistic regression ANOVA almost exactly. 
+# Thus, a proportion test can be viewed as a special case of a logistic regression.
+
+
+#_---- 
+
+
+#* 18.5 Example: Building a More Accurate Model --------------------------
+# Now we can form a model for the shooting percentages using the individual players data:
+#   logit(pi) = α + β1*SF + β2*DD + β3*player_dummy
+
+logistic.nba2 <- glm(FGM~SHOT_DIST+Team.Defending, data=shot_logs_2014, family=binomial(link="logit"))
+summary(logistic.nba2)
+
+
+#_----
+
+
+#* 18.6 Example: Measuring Team Defense Using Logistic Regression --------
+# logit(pi) = α + β1*SD + β2*Team + β3*(Team)(SD)
+# Since the team defending is a categorical variable R will store it as a dummy variable when forming the regression. 
+# Thus the first level of this variable will not appear in our regression (or more precisely it will be included in the intercept α and slope β1). 
+# Before we run the model we can see which team will be missing.
+
+levels(shot_logs_2014$Team.Defending)[1]
+
+logistic.nba.team <- glm(FGM ~ SHOT_DIST + Team.Defending + Team.Defending:SHOT_DIST, data=shot_logs_2014, family=binomial(link="logit"))
+summary(logistic.nba.team)
+
+
+# The below plot shows the expected shooting percentages at each distance for the teams in the data set.
+
+
+# ____________
+# Below codes do not work.
+
+# Make a ribbon plot including the errors in the predictions
+
+plotTeamsSP <- function(teamList) {
+  teamdf %>%
+    filter(Team %in% teamList) %>%
+    mutate(upper.prob=invlogit(logit(Results)+2*se),lower.prob=invlogit(logit(Results)-2*se)) %>%
+    ggplot(aes(x=xvalues, y=Results, color=Team)) +
+    geom_line() +
+    geom_ribbon(aes(ymin=lower.prob, ymax=upper.prob, color=Team, fill=Team), alpha=0.2) +
+    xlab('Shot Distance (FT)') + ylab('Probability of Made Shot') + labs(title='Team Defense')
+}
+
+plotTeamsSP(c("GSW", "SAS"))
+
+
+# Better Approach
+inTraining <- createDataPartition(shot_logs_2014$FGM, p=0.80, list=FALSE)
+sl_train <- shot_logs_2014[inTraining,]
+sl_test <- shot_logs_2014[-inTraining,]
+
+# Build a logistic regression model using the training data
+lr_sd <- glm(FGM~SHOT_DIST+as.factor(player_name), data=sl_train, family = binomial(link="logit"))
+
+predicted.train <- ifelse(invlogit(predict.glm(lr_sd, sl_train))<0.5, "Made", "Missed")
+actual.train <- ifelse(sl_train$FGM==1, "Made", "Missed")
+
+
+confusionMatrix(as.factor(predicted.train), as.factor(actual.train))
+
+
+# ____----
